@@ -6,7 +6,7 @@ Repository containing the exercises submitted for the "DevOps with Kubernetes" c
 
 ## Exercises
 
-### Charpter 2
+### Chapter 2
 
 - [1.1.](https://github.com/Yakovyakov/KubernetsSubmissions/tree/1.1/log_output)
 
