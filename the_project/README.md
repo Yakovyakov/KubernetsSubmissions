@@ -1,15 +1,19 @@
-# Kubernetes Exercise 1.2
+# Kubernetes Exercise 1.4: Declarative approach
+
+create a new folder named manifests and place a file called [deployment.yaml](./manifest/deployment.yaml)
+**Note:** The deployment name was changed to project-todo-dep
 
 ## The project structure
 
   ```tree
   the_project/
+  ├── manifest
+  │   └── deployment.yaml # deplyment config file
   ├── README.md
   └── todo_app/
     ├── index.js       # server Node.js code
     ├── package.json    # package config
     └── Dockerfile      # Docker file
-
   ```
 
 ## TODO App - Node.js Server
@@ -99,10 +103,11 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
 
 ## Kubernetes Deployment
 
-**Create deployment:**
+**Apply the deployment with apply command:**
 
   ```bash
-  kubectl create deployment project-dep --image=yakovyakov/todo-app:1.0
+  # the_project folder
+  kubectl apply -f manifest/deployment.yaml
   ```
 
 ## Verification and Monitoring
@@ -111,19 +116,19 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
 
   ```bash
   $ kubectl get deployments
-  NAME          READY   UP-TO-DATE   AVAILABLE   AGE
-  project-dep   1/1     1            1           91s
+  NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+  project-todo-dep   1/1     1            1           57s
 
   $ kubectl get pods
-  NAME                           READY   STATUS    RESTARTS   AGE
-  project-dep-84c66f56c6-hd4nt   1/1     Running   0          3m4s
+  NAME                               READY   STATUS    RESTARTS   AGE
+  project-todo-dep-d9f585669-9rtvd   1/1     Running   0          59s
   ```
 
 **View logs:**
 
   ```bash
   #kubectl logs -f <pod-name>
-  $ kubectl logs -f project-dep-84c66f56c6-hd4nt
+  $ kubectl logs -f project-todo-dep-d9f585669-9rtvd
 
   > todo-app@1.0.0 start
   > node index.js
