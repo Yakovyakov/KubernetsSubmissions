@@ -1,4 +1,6 @@
-# Kubernetes Exercise 1.1
+# Kubernetes Exercise 1.3: Declarative approach
+
+create a new folder named manifests and place a file called [deployment.yaml](./manifest/deployment.yaml)
 
 ## Log Output Application
 
@@ -54,10 +56,10 @@ Image was pushed to Docker Hub repo: [yakovyakov/log-output-app:1.0](https://hub
 
 ## Kubernetes Deployment
 
-**Create deployment:**
+**Apply the deployment with apply command:**
 
   ```bash
-  kubectl create deployment logoutput-dep --image=yakovyakov/log-output-app:1.0
+  kubectl apply -f log_output/manifest/deployment.yaml
   ```
 
 ## Verification and Monitoring
@@ -67,32 +69,22 @@ Image was pushed to Docker Hub repo: [yakovyakov/log-output-app:1.0](https://hub
   ```bash
   $ kubectl get deployments
   NAME            READY   UP-TO-DATE   AVAILABLE   AGE
-logoutput-dep   1/1     1            1           58m
-
+  logoutput-dep   1/1     1            1           7m15s
+  
   $ kubectl get pods
-  NAME                             READY   STATUS    RESTARTS   AGE
-logoutput-dep-7f566864db-b7xqm   1/1     Running   0          61m
-
+  NAME                            READY   STATUS    RESTARTS   AGE
+  logoutput-dep-8f85fdd65-k5fdv   1/1     Running   0          7m18s
   ```
 
 **View logs:**
 
   ```bash
   #kubectl logs -f <pod-name>
-  kubectl logs -f logoutput-dep-7f566864db-b7xqm
-> log-ouput-app@1.0.0 start
-> node index.js
+  $ kubectl logs -f logoutput-dep-8f85fdd65-k5fdv
+  > log-ouput-app@1.0.0 start
+  > node index.js
 
-2025-07-31T19:26:37.421Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:26:42.432Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:26:47.436Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:26:52.440Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:26:57.444Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:27:02.448Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:27:07.452Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:27:12.456Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:27:17.460Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:27:22.465Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-2025-07-31T19:27:27.468Z: ab72cbe-c630-4322-8db0-2c3f0a6d693c
-
+  2025-08-01T17:01:24.987Z: 274bfcc-8a64-43b3-8054-35768ab16896
+  2025-08-01T17:01:29.999Z: 274bfcc-8a64-43b3-8054-35768ab16896
+  2025-08-01T17:01:35.005Z: 274bfcc-8a64-43b3-8054-35768ab16896
   ```
