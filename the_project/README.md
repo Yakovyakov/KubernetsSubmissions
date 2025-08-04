@@ -143,7 +143,7 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
   Server started in port 3000
 
   ```
-## Description of the solution to exercise 1.5 {#solution}
+## Description of the solution to exercise 1.5 (solution)
 
 ### Define an enviroment variable for a container
 
