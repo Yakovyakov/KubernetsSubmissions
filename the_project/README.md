@@ -2,8 +2,6 @@
 
 Make the project respond something to a GET request sent to the / url of the project
 
-The PORT environment variable was added to the container in the [manifest/deployment.yaml](./manifest/deployment.yaml) file.
-
 The deployment was tested with the port-forward command.
 
 The solution description is [here](#description-of-the-solution-to-exercise-15)
@@ -146,6 +144,8 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
 ## Description of the solution to exercise 1.5
 
 ### Define an enviroment variable for a container
+
+The PORT environment variable was added to the container in the [manifest/deployment.yaml](./manifest/deployment.yaml) file.
 
   ```file
      ...
