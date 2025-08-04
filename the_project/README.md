@@ -6,7 +6,7 @@ The PORT environment variable was added to the container in the [manifest/deploy
 
 The deployment was tested with the port-forward command.
 
-The solution description is [here](#solution)
+The solution description is [here](#description-of-the-solution-to-exercise-15)
 
 **Note:** The deployment name was changed to project-todo-dep
 
@@ -143,7 +143,7 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
   Server started in port 3000
 
   ```
-## Description of the solution to exercise 1.5 (solution)
+## Description of the solution to exercise 1.5
 
 ### Define an enviroment variable for a container
 
