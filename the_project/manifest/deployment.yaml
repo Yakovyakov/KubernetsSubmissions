@@ -15,4 +15,8 @@ spec:
       containers:
         - name: todo-app
           image: yakovyakov/todo-app:1.0
+          env:
+            - name: PORT
+              value: "3004"
+
 

@@ -1,6 +1,13 @@
-# Kubernetes Exercise 1.4: Declarative approach
+# Kubernetes Exercise 1.5
 
-create a new folder named manifests and place a file called [deployment.yaml](./manifest/deployment.yaml)
+Make the project respond something to a GET request sent to the / url of the project
+
+The PORT environment variable was added to the container in the [manifest/deployment.yaml](./manifest/deployment.yaml) file.
+
+The deployment was tested with the port-forward command.
+
+The solution description is [here](#solution)
+
 **Note:** The deployment name was changed to project-todo-dep
 
 ## The project structure
@@ -134,5 +141,57 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
   > node index.js
 
   Server started in port 3000
+
+  ```
+## Description of the solution to exercise 1.5 {#solution}
+
+### Define an enviroment variable for a container
+
+  ```file
+     ...
+	containers:
+          - name: todo-app
+            image: yakovyakov/todo-app:1.0
+            env:
+              - name: PORT
+                value: "3004"
+  ```
+
+### List Pod's container enviroment vabriables
+
+  ```bash
+    # Pod's name project-todo-dep-98d4dc59-gfmgc
+    $ kubectl exec project-todo-dep-98d4dc59-gfmgc -- printenv
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    HOSTNAME=project-todo-dep-98d4dc59-gfmgc
+    NODE_VERSION=18.20.8
+    YARN_VERSION=1.22.22
+    PORT=3004  # <-- PORT enviroment variable
+    KUBERNETES_SERVICE_PORT_HTTPS=443
+    KUBERNETES_PORT=tcp://10.43.0.1:443
+    KUBERNETES_PORT_443_TCP=tcp://10.43.0.1:443
+    KUBERNETES_PORT_443_TCP_PROTO=tcp
+    KUBERNETES_PORT_443_TCP_PORT=443
+    KUBERNETES_PORT_443_TCP_ADDR=10.43.0.1
+    KUBERNETES_SERVICE_HOST=10.43.0.1
+    KUBERNETES_SERVICE_PORT=443
+    HOME=/root
+
+  ```
+### Connecting from outside of the cluster
+
+  ```bash
+  $ kubectl port-forward project-todo-dep-98d4dc59-gfmgc 3006:3004
+  Forwarding from 127.0.0.1:3006 -> 3004
+  Forwarding from [::1]:3006 -> 3004
+  Handling connection for 3006
+
+  ```
+  
+**verify**
+
+  ```bash
+  $ curl http://localhost:3006
+  TODO App will be implemented soon
 
   ```
