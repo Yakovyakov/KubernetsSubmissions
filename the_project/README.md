@@ -1,24 +1,27 @@
-# Kubernetes Exercise 1.5
+# Kubernetes Exercise 1.6
 
-Make the project respond something to a GET request sent to the / url of the project
+Use a NodePort Service to enable access to the project.
 
-The deployment was tested with the port-forward command.
+The solution description is [here](#description-of-the-solution-to-exercise-16)
 
-The solution description is [here](#description-of-the-solution-to-exercise-15)
+**Notes:** 
 
-**Note:** The deployment name was changed to project-todo-dep
+* The deployment name was changed to project-todo-dep
+
+* The manifest folder was renamed to **manifests**
 
 ## The project structure
 
   ```tree
   the_project/
-  ├── manifest
-  │   └── deployment.yaml # deplyment config file
+  ├── manifests
+  │   ├── deployment.yaml   # deployment config file
+  │   └── service.yaml      # Service config file
   ├── README.md
   └── todo_app/
-    ├── index.js       # server Node.js code
-    ├── package.json    # package config
-    └── Dockerfile      # Docker file
+      ├── index.js        # server Node.js code
+      ├── package.json    # package config
+      └── Dockerfile      # Docker file
   ```
 
 ## TODO App - Node.js Server
@@ -26,7 +29,9 @@ The solution description is [here](#description-of-the-solution-to-exercise-15)
 A simple Node.js web server that:
 
 * Prints "Server started in port ${PORT}" on startup
+
 * Responds with a placeholder message ("TODO App coming soon")
+
 * Configurable port via environment variable (PORT)
 
 ### Running the Application Locally
@@ -112,7 +117,7 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
 
   ```bash
   # the_project folder
-  kubectl apply -f manifest/deployment.yaml
+  kubectl apply -f manifests/deployment.yaml
   ```
 
 ## Verification and Monitoring
@@ -141,57 +146,72 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
   Server started in port 3000
 
   ```
-## Description of the solution to exercise 1.5
+## Description of the solution to exercise 1.6
 
-### Define an enviroment variable for a container
+### Initial setup
 
-The PORT environment variable was added to the container in the [manifest/deployment.yaml](./manifest/deployment.yaml) file.
-
-  ```file
-     ...
-	containers:
-          - name: todo-app
-            image: yakovyakov/todo-app:1.0
-            env:
-              - name: PORT
-                value: "3004"
-  ```
-
-### List Pod's container enviroment vabriables
+Create a cluster with command:
 
   ```bash
-    # Pod's name project-todo-dep-98d4dc59-gfmgc
-    $ kubectl exec project-todo-dep-98d4dc59-gfmgc -- printenv
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    HOSTNAME=project-todo-dep-98d4dc59-gfmgc
-    NODE_VERSION=18.20.8
-    YARN_VERSION=1.22.22
-    PORT=3004  # <-- PORT enviroment variable
-    KUBERNETES_SERVICE_PORT_HTTPS=443
-    KUBERNETES_PORT=tcp://10.43.0.1:443
-    KUBERNETES_PORT_443_TCP=tcp://10.43.0.1:443
-    KUBERNETES_PORT_443_TCP_PROTO=tcp
-    KUBERNETES_PORT_443_TCP_PORT=443
-    KUBERNETES_PORT_443_TCP_ADDR=10.43.0.1
-    KUBERNETES_SERVICE_HOST=10.43.0.1
-    KUBERNETES_SERVICE_PORT=443
-    HOME=/root
-
-  ```
-### Connecting from outside of the cluster
-
-  ```bash
-  $ kubectl port-forward project-todo-dep-98d4dc59-gfmgc 3006:3004
-  Forwarding from 127.0.0.1:3006 -> 3004
-  Forwarding from [::1]:3006 -> 3004
-  Handling connection for 3006
-
+  k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
   ```
   
+  Now we have access through port 8081 to our server node (actually all nodes) and 8082 to one of our agent nodes port 30080
+
+### Define a Service Resource
+
+Create a file [service.yaml](./manifests/service.yaml) file into the manifests folder. We need the service to do the following things:
+
+1. Declare that we want a Service
+
+2. Declare which port to listen to
+
+3. Declare the application where the request should be directed to
+
+4. Declare the port where the request should be directed to
+
+The resulting file service.yaml looks like this:
+
+  ```file
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: project-todo-svc
+  spec:
+    type: NodePort
+    selector:
+      app: project-todo # This is the app as declared in the deployment.
+    ports:
+      - name: http
+        nodePort: 30080 # This is the port that is available outside. Value for nodePort can be between 30000-32767
+        protocol: TCP
+        port: 1234 # This is a port that is available to the cluster, in this case it can be ~ anything
+        targetPort: 3004 # This is the target port
+  ```
+
+### Apply deployment and service
+
+**Apply deployment**
+
+  ```bash
+  # the_project folder
+  kubectl apply -f manifests/deployment.yaml
+  ```
+**Apply service**
+
+  ```bash
+  # the_project folder
+  kubectl apply -f manifests/service.yaml
+  ```
+  
+### Connecting from outside of the cluster
+
+As we've published 8082 as 30080 we can access it now via http://localhost:8082.
+
 **verify**
 
   ```bash
-  $ curl http://localhost:3006
+  $ curl http://localhost:8082
   TODO App will be implemented soon
 
   ```
