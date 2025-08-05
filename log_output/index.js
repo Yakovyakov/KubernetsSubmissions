@@ -1,3 +1,9 @@
+const express = require('express');
+
+const app = express();
+
+const PORT = process.env.PORT || 8080;
+
 function generateUUID() {
   return 'xxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
@@ -8,12 +14,22 @@ function generateUUID() {
 
 const randomHash = generateUUID();
 
+// Endpoint /status
+app.get('/status', (req, res) => {
+  res.json({
+    timestamp: new Date().toISOString(),
+    randomString: randomHash
+  });
+});
 
-const printHash = () => {
+const writeLog = () => {
   const timestamp = new Date().toISOString();
   console.log(`${timestamp}: ${randomHash}`);
 
-  setTimeout(printHash, 5000)
+  setTimeout(writeLog, 5000);
 }
 
-printHash()
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+  writeLog();
+});
