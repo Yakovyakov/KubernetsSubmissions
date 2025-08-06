@@ -114,7 +114,7 @@ Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docke
 
 ## Kubernetes
 
-## Description of the solution to exercise 1.6
+## Description of the solution to exercise 1.8
 
 ### Initial setup
 
@@ -150,7 +150,7 @@ The resulting file service.yaml looks like this:
 
 ### Define an Ingress Resources
 
-Create a file [ingress.yaml](./manifests/ingress.yaml) file into the mani>
+Create a file [ingress.yaml](./manifests/ingress.yaml) file into the manifests folder
 
 The resulting file ingress.yaml looks like this:
 
