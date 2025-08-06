@@ -1,8 +1,8 @@
-# Kubernetes Exercise 1.6
+# Kubernetes Exercise 1.8
 
-Use a NodePort Service to enable access to the project.
+Switch to using Ingress instead of NodePort to access the project
 
-The solution description is [here](#description-of-the-solution-to-exercise-16)
+The solution description is [here](#description-of-the-solution-to-exercise-18)
 
 **Notes:** 
 
@@ -16,6 +16,7 @@ The solution description is [here](#description-of-the-solution-to-exercise-16)
   the_project/
   ├── manifests
   │   ├── deployment.yaml   # deployment config file
+  │   ├── ingress.yaml      # ingress config file
   │   └── service.yaml      # Service config file
   ├── README.md
   └── todo_app/
@@ -111,41 +112,8 @@ A simple Node.js web server that:
 
 Image was pushed to Docker Hub repo: [yakovyakov/todo-app:1.0](https://hub.docker.com/r/yakovyakov/todo-app/tags?name=1.0)
 
-## Kubernetes Deployment
+## Kubernetes
 
-**Apply the deployment with apply command:**
-
-  ```bash
-  # the_project folder
-  kubectl apply -f manifests/deployment.yaml
-  ```
-
-## Verification and Monitoring
-
-**View deployments and pods:**
-
-  ```bash
-  $ kubectl get deployments
-  NAME               READY   UP-TO-DATE   AVAILABLE   AGE
-  project-todo-dep   1/1     1            1           57s
-
-  $ kubectl get pods
-  NAME                               READY   STATUS    RESTARTS   AGE
-  project-todo-dep-d9f585669-9rtvd   1/1     Running   0          59s
-  ```
-
-**View logs:**
-
-  ```bash
-  #kubectl logs -f <pod-name>
-  $ kubectl logs -f project-todo-dep-d9f585669-9rtvd
-
-  > todo-app@1.0.0 start
-  > node index.js
-
-  Server started in port 3000
-
-  ```
 ## Description of the solution to exercise 1.6
 
 ### Initial setup
@@ -160,15 +128,7 @@ Create a cluster with command:
 
 ### Define a Service Resource
 
-Create a file [service.yaml](./manifests/service.yaml) file into the manifests folder. We need the service to do the following things:
-
-1. Declare that we want a Service
-
-2. Declare which port to listen to
-
-3. Declare the application where the request should be directed to
-
-4. Declare the port where the request should be directed to
+Create a file [service.yaml](./manifests/service.yaml) file into the manifests folder.
 
 The resulting file service.yaml looks like this:
 
@@ -178,40 +138,83 @@ The resulting file service.yaml looks like this:
   metadata:
     name: project-todo-svc
   spec:
-    type: NodePort
+    type: ClusterIP
     selector:
-      app: project-todo # This is the app as declared in the deployment.
+      app: project-todo      # This is the app as declared in the deployment.
     ports:
       - name: http
-        nodePort: 30080 # This is the port that is available outside. Value for nodePort can be between 30000-32767
         protocol: TCP
-        port: 1234 # This is a port that is available to the cluster, in this case it can be ~ anything
-        targetPort: 3004 # This is the target port
+        port: 1234           # This is a port that is available to the cluster, in this case it can be ~ anything
+        targetPort: 3004     # This is the target port
   ```
 
-### Apply deployment and service
+### Define an Ingress Resources
 
-**Apply deployment**
+Create a file [ingress.yaml](./manifests/ingress.yaml) file into the mani>
+
+The resulting file ingress.yaml looks like this:
+
+  ```file
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: project-todo-ingress
+  spec:
+    rules:
+    - host: ""
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: project-todo-svc
+                port:
+                  number: 1234
+  ```
+### Apply Kubernetes configurations
 
   ```bash
-  # the_project folder
   kubectl apply -f manifests/deployment.yaml
+  kubectl apply -f manifests/service.yaml
+  kubectl apply -f manifests/ingress.yaml
   ```
-**Apply service**
+
+  or
 
   ```bash
-  # the_project folder
-  kubectl apply -f manifests/service.yaml
+  kubectl apply -f manifests/
   ```
+
+### View Resources (Deployments, Pods, Services and Ingress)
+
+  ```bash
+  $ kubectl get deployments
+  NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+  project-todo-dep   1/1     1            1           20m
   
+  $ kubectl get pods
+  NAME                              READY   STATUS    RESTARTS   AGE
+  project-todo-dep-98d4dc59-8s8jc   1/1     Running   0          20m
+
+  $ kubectl get svc
+  NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+  kubernetes         ClusterIP   10.43.0.1      <none>        443/TCP    43h
+  project-todo-svc   ClusterIP   10.43.57.190   <none>        1234/TCP   21m
+
+  $ kubectl get ing
+  NAME                   CLASS     HOSTS   ADDRESS                                  PORTS   AGE
+  project-todo-ingress   traefik   *       192.168.16.2,192.168.16.3,192.168.16.4   80      21m
+  ```
+
 ### Connecting from outside of the cluster
 
-As we've published 8082 as 30080 we can access it now via http://localhost:8082.
+The ingress is listening on port 80. As we already opened the port there we can acccess the application in "http\://localhost:8081/"
 
 **verify**
 
   ```bash
-  $ curl http://localhost:8082
+  $ curl http://localhost:8081
   TODO App will be implemented soon
 
   ```
