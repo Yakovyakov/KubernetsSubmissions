@@ -9,4 +9,4 @@ spec:
   ports:
     - port: 2345 # Port on which the service will be available within the cluster
       protocol: TCP
-      targetPort: 8080 # Must match the PORT of the container
+      targetPort: 3001 # Must match the PORT of the container

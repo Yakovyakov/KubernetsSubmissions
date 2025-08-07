@@ -1,2 +1,4 @@
 
 /log_output/node_modules
+/log_output/apps/log-output/node_modules
+/log_output/apps/ping-pong/node_modules

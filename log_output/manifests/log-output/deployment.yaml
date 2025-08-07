@@ -15,4 +15,6 @@ spec:
       containers:
         - name: logoutput
           image: yakovyakov/log-output-app:2.0
-
+          env:
+            - name: PORT
+              value: "3001"
