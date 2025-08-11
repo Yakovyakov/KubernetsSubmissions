@@ -8,7 +8,7 @@ spec:
   - host: ""
     http:
       paths:
-        - path: /status
+        - path: /logs       # endpoint 
           pathType: Prefix
           backend:
             service:

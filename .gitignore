@@ -2,3 +2,5 @@
 /log_output/node_modules
 /log_output/apps/log-output/node_modules
 /log_output/apps/ping-pong/node_modules
+/log_output/apps/log-reader/node_modules
+/log_output/apps/log-writer/shared-logs

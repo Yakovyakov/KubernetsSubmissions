@@ -1,10 +1,12 @@
-# Kubernetes Exercise 1.9
+# Kubernetes Exercise 1.10
 
 **Notes:**
 
-* The version of the log-output-app was changed to 2.0
+* Split the Log Output application into two diferent containers within a single pod
 
-* Create a ping-pong application
+* Create a log-writer application
+
+* Create a log-reader application
 
 * The manifest folder was renamed to **manifests**
 
@@ -13,7 +15,12 @@
   ```tree
   .
   ├── apps                      # Applications code
-  │   ├── log-output            # log-output app
+  │   ├── log-output            # old log-output app, only for historical props
+  │   ├── log-writer            # log-writer app
+  │   │   ├── Dockerfile        # Docker file
+  │   │   ├── index.js
+  │   │   └── package.json
+  │   ├── log-reader            # log-reader app
   │   │   ├── Dockerfile        # Docker file
   │   │   ├── index.js
   │   │   └── package.json
@@ -22,9 +29,9 @@
   │   │   ├── index.js
   │   │   └── package.json
   ├── manifests                 # Kubernetes configs
-  │   ├── log-output            # log-output App-specific resources
-  │   │   ├── deployment.yaml
-  │   │   └── service.yaml
+  │   ├── log-output            # Contains multi-container Pod resources
+  │   │   ├── deployment.yaml   # Pod with log-writer + log-reader + shared volumen
+  │   │   └── service.yaml      # Expose only the log-reader
   │   ├── ping-pong             # ping-pong App-specific resources
   │   │   ├── deployment.yaml
   │   │   └── service.yaml
@@ -35,23 +42,35 @@
 
 ## Applications
 
-### Log Output Application
+### Log Writer Application
 
-A simple Node.js web server that:
+A simple Node.js application that:
 
 * Generates a random string(version 4 UUID) on startup, stores it in memory
 
-* Prints "Server started in port ${PORT}" on startup
+* Write the saved random string to a log file every 5 seconds along with an ISO-format
 
-* Has an endpoint (/status) to request current status.
+* Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
-* Outputs the saved random string to stdout every 5 seconds along with an ISO-format timestamp.
+Image was pushed to Docker Hub repo: [yakovyakov/log-writer:1.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=1.0)
+
+Application: [apps/log-writer](./apps/log-writer/)
+
+### Log Reader Application
+
+A simple Node.js web server that:
+
+* Read a log file and provides the content in the HTTP GET endpoint
+
+* Prints "Server(<\app-name>) started in port ${PORT}" on startup
 
 * Configurable port via environment variable (PORT)
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-output-app:2.0](https://hub.docker.com/r/yakovyakov/log-output-app/tags?name=2.0)
+* Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
-Application: [apps/log-output](./apps/log-output/)
+Image was pushed to Docker Hub repo: [yakovyakov/log-reader:1.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=1.0)
+
+Application: [apps/log-reader](./apps/log-reader/)
 
 ### Ping Pong Application
 
@@ -117,14 +136,25 @@ Expected ouput
 
 #### Applications Resources (in manifests/\<app-name>)
 
-We need to configure 3 main resources:
+We need to configure the followings resources:
 
-* Deployment:
-  * log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml)
-  * ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
-* Service:
-  * log-output: [service.yaml](./manifests/log-output/service.yaml)
-  * ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
+1. Deployment:
+
+    * log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml).
+
+    * Resources to deploy a multi-container Pod with a log writer and reader. Pod structe:
+      * log-reader Container that uses a volume mount (/usr/src/app/shared-logs)
+      * log-writer Container that uses a volume mount (/usr/src/app/shared-logs)
+      * Shared Volume:
+        * emptyDir: Temporary storage shared between containers in a same Pod
+
+    * ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
+
+2. Service:
+
+    * log-output: [service.yaml](./manifests/log-output/service.yaml)
+      * Expose only the log-reader container.
+    * ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
 
 #### Kubernets Ingress Configuration with NGINX
 
@@ -141,7 +171,7 @@ The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingr
     - host: ""
       http:
         paths:
-          - path: /status
+          - path: /logs # change endpoint /status for /logs
             pathType: Prefix
             backend:
               service:
@@ -160,7 +190,7 @@ The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingr
 ### Apply Kubernets configurations
 
   ```bash
-  kubectl apply -f manifests/log-output   # logoutput configs 
+  kubectl apply -f manifests/log-output   # multi-container Pod with a log writer and reader 
   kubectl apply -f manifests/ping-pong    # ping-pong configs 
   kubectl apply -f manifests/ingress.yaml # shared ingress
   ```
@@ -172,14 +202,16 @@ The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingr
   ```bash
   $ kubectl get deployments
   NAME            READY   UP-TO-DATE   AVAILABLE   AGE
-  logoutput-dep   1/1     1            1           157m
-  pingpong-dep    1/1     1            1           3h38m
+  logoutput-dep   1/1     1            1           97s
+  pingpong-dep    0/1     1            0           9m52s
+
 
   $ kubectl get pods
-  NAME                            READY   STATUS    RESTARTS   AGE
-  debug                           1/1     Running   0          18h
-  logoutput-dep-777c4447-7snk5    1/1     Running   0          158m
-  pingpong-dep-5969cc986f-88qtb   1/1     Running   0          3h38m
+  NAME                             READY   STATUS             RESTARTS        AGE
+  debug                            1/1     Running            1 (2d17h ago)   4d16h
+  logoutput-dep-77df89f9c6-8p78n   2/2     Running            0               2m7s
+  pingpong-dep-5969cc986f-h7znj    0/1     ImagePullBackOff   0               10m
+
   
   $ kubectl get svc
   NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
@@ -188,39 +220,133 @@ The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingr
   pingpong-svc    ClusterIP   10.43.98.68    <none>        2345/TCP   3h39m
 
   $ kubectl get ing
-  NAME             CLASS   HOSTS   ADDRESS        PORTS   AGE
-  shared-ingress   nginx   *       192.168.16.3   80      3h32m
+  NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+  kubernetes      ClusterIP   10.43.0.1      <none>        443/TCP    6d18h
+  logoutput-svc   ClusterIP   10.43.53.206   <none>        2345/TCP   10m
+  pingpong-svc    ClusterIP   10.43.16.115   <none>        2345/TCP   10m
+
+  ```
+  
+#### View multi-container Pod
+
+  Applications (log-writer and log-reader) are running in a same Pod (logoutput-dep-77df89f9c6-8p78n) as we can see:
+  
+  ```bash
+  Name:             logoutput-dep-77df89f9c6-8p78n
+  Namespace:        default
+  Priority:         0
+  Service Account:  default
+  Node:             k3d-k3s-default-agent-1/192.168.16.4
+  Start Time:       Mon, 11 Aug 2025 09:26:49 -0400
+  Labels:           app=logoutput
+                  pod-template-hash=77df89f9c6
+  Annotations:      <none>
+  Status:           Running
+  IP:               10.42.2.15
+  IPs:
+    IP:           10.42.2.15
+  Controlled By:  ReplicaSet/logoutput-dep-77df89f9c6
+  Containers:
+    log-writer:
+      Container ID:   containerd://8a0589d09135db4172c50ecd7d2d9cc95f78cac1c891514e8eb94f9ad81325b5
+      Image:          yakovyakov/log-writer:1.0
+      Image ID:       docker.io/yakovyakov/log-writer@sha256:a2ecd54149e895322f6ab6443ef229212c8893369e5b656438ed12b9d7506184
+      Port:           <none>
+      Host Port:      <none>
+      State:          Running
+        Started:      Mon, 11 Aug 2025 09:27:36 -0400
+      Ready:          True
+      Restart Count:  0
+      Environment:    <none>
+      Mounts:
+        /usr/src/app/shared-logs from shared-logs (rw)
+        /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-frml7 (ro)
+    log-reader:
+      Container ID:   containerd://fc1fa5ce1abbcda5b043f229e20995b73c800a3f58c5b03c53461e299389fc02
+      Image:          yakovyakov/log-reader:1.0
+      Image ID:       docker.io/yakovyakov/log-reader@sha256:5d948af84788c2d41d40cabbc78ffd2b96fcf9e6cb8407b8d3c2d083b7864741
+      Port:           <none>
+      Host Port:      <none>
+      State:          Running
+        Started:      Mon, 11 Aug 2025 09:27:58 -0400
+      Ready:          True
+      Restart Count:  0
+      Environment:
+        PORT:  3001
+      Mounts:
+        /usr/src/app/shared-logs from shared-logs (rw)
+        /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-frml7 (ro)
+  Conditions:
+    Type                        Status
+    PodReadyToStartContainers   True 
+    Initialized                 True 
+    Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+  Volumes:
+    shared-logs:
+      Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+      Medium:     
+      SizeLimit:  <unset>
+    kube-api-access-frml7:
+      Type:                    Projected (a volume that contains injected data from multiple sources)
+      TokenExpirationSeconds:  3607
+      ConfigMapName:           kube-root-ca.crt
+      Optional:                false
+      DownwardAPI:             true
+  QoS Class:                   BestEffort
+  Node-Selectors:              <none>
+  Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                               node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+  Events:
+    Type    Reason     Age    From               Message
+    ----    ------     ----   ----               -------
+    Normal  Scheduled  5m8s   default-scheduler  Successfully assigned default/logoutput-dep-77df89f9c6-8p78n to k3d-k3s-default-agent-1
+    Normal  Pulling    5m7s   kubelet            Pulling image "yakovyakov/log-writer:1.0"
+    Normal  Pulled     4m23s  kubelet            Successfully pulled image "yakovyakov/log-writer:1.0" in 43.794s (43.794s including waiting). Image size: 59040899 bytes.
+    Normal  Created    4m22s  kubelet            Created container log-writer
+    Normal  Started    4m22s  kubelet            Started container log-writer
+    Normal  Pulling    4m22s  kubelet            Pulling image "yakovyakov/log-reader:1.0"
+    Normal  Pulled     4m     kubelet            Successfully pulled image "yakovyakov/log-reader:1.0" in 19.475s (19.475s including waiting). Image size: 60497323 bytes.
+    Normal  Created    4m     kubelet            Created container log-reader
+    Normal  Started    4m     kubelet            Started container log-reader
   ```
 
 #### View logs from stdout
 
   ```bash
   #kubectl logs -f <pod-name>
-  $ kubectl logs -f logoutput-dep-777c4447-7snk5
-  > log-ouput-app@1.0.0 start
-  > node index.js
+  $ kubectl logs -f logoutput-dep-77df89f9c6-8p78n
+  Defaulted container "log-writer" out of: log-writer, log-reader
 
-  Server started on port 3001
-  2025-08-07T12:50:01.586Z: 597cb94-8a0e-465e-9b72-a0f5b78c6029
-  2025-08-07T12:50:06.589Z: 597cb94-8a0e-465e-9b72-a0f5b78c6029
+  > log-writer@1.0.0 start
+  > node index.js
   ```
 
 ### Connecting from outside of the cluster
 
 The ingress is listening on port 80. As we already opened the port there we can acccess the applications enpoints on:
 
-* log-output: "http\://localhost:8081/status"
+* log-output: "http\://localhost:8081/logs"
 
   ```bash
-  curl http://localhost:8081/status
-  {"timestamp":"2025-08-07T15:32:02.457Z","randomString":"597cb94-8a0e-465e-9b72-a0f5b78c6029"}  ```
+  curl http://localhost:8081/logs
+  2025-08-11T13:27:40.687Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:27:45.692Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:27:50.696Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:27:57.594Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:28:02.598Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:28:07.602Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:28:12.606Z: 6a704db-2942-4645-a248-0b999029dd08
+  2025-08-11T13:28:17.610Z: 6a704db-2942-4645-a248-0b999029dd08
+  ```
 * ping-pong: "http\://localhost:8081/pingpong"
 
   ```bash
-  $ curl http://localhostg8081/pingpong 
+  $ curl http://localhost:8081/pingpong 
   pong 1
 
-  $ curl http://localhostg8081/pingpong 
+  $ curl http://localhost:8081/pingpong 
   pong 2
 
   ```
