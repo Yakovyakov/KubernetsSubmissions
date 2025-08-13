@@ -3,6 +3,8 @@ const path = require('path');
 
 const LOG_FILE = process.env.LOG_FILE_PATH || path.join(__dirname, 'shared-logs', 'output.log');
 
+const COUNTER_FILE = process.env.COUNTER_FILE_PATH || path.join(__dirname, 'shared-data', 'count.txt');
+
 function generateUUID() {
   return 'xxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
@@ -19,7 +21,15 @@ if (!fs.existsSync(LOG_FILE)) {
 
 const writeLog = () => {
   const timestamp = new Date().toISOString();
-  const logLine = `${timestamp}: ${randomHash}\n`;
+  let counter = 0;
+  try {
+    counter = parseInt(fs.readFileSync(COUNTER_FILE, 'utf-8'));
+
+  } catch (err) {
+    console.error(`Error readding counter: ${err.message}`);
+  }
+  
+  const logLine = `${timestamp}: ${randomHash}. Ping / Pongs: ${counter}\n`;
 
   fs.appendFile(LOG_FILE, logLine, (err) => {
     if (err) {

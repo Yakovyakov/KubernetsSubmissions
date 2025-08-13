@@ -48,11 +48,14 @@ A simple Node.js application that:
 
 * Generates a random string(version 4 UUID) on startup, stores it in memory
 
-* Write the saved random string to a log file every 5 seconds along with an ISO-format
+ 
+* Every 5 seconds, it reads the counter saved in file (COUNTER_FILE), and write the saved random string and the counter along with an ISO-format timestamp to a log file.
 
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-writer:1.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=1.0)
+* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
+
+Image was pushed to Docker Hub repo: [yakovyakov/log-writer:2.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=2.0)
 
 Application: [apps/log-writer](./apps/log-writer/)
 
@@ -60,7 +63,11 @@ Application: [apps/log-writer](./apps/log-writer/)
 
 A simple Node.js web server that:
 
-* Read a log file and provides the content in the HTTP GET endpoint
+* Expose two HTTP GET endpoints:
+
+  * /logs : Read a log file and provides the content
+  
+  * /status: Read a log file and provides the last line
 
 * Prints "Server(<\app-name>) started in port ${PORT}" on startup
 
@@ -68,7 +75,7 @@ A simple Node.js web server that:
 
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-reader:1.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=1.0)
+Image was pushed to Docker Hub repo: [yakovyakov/log-reader:2.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=2.0)
 
 Application: [apps/log-reader](./apps/log-reader/)
 
@@ -80,11 +87,13 @@ A simple Node.js web server that:
 
 * Expose a GET /pingpong endpoint that return "pong <current_counter>"
 
-* Increments the counter with each request (start at 0)
+* Increments the counter with each request (start at 0), and save the counter in a file
 
 * Configurable port via environment variable (PORT)
 
-Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:1.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=1.0)
+* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
+
+Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=2.0)
 
 Application: [apps/ping-pong](./apps/ping-pong/)
 
@@ -131,7 +140,69 @@ Expected ouput
   ingress-nginx-controller-6d45bc7765-qnptz   1/1     Running   0          179m
 
   ```
+### Diagram 
 
+  graph TD
+      subgraph Kubernetes Cluster
+          subgraph Ingress
+              I[Ingress Controller]
+          end
+         
+          subgraph Ping-pong Deployment
+              PP[Ping-pong Pod]
+          end
+        
+          subgraph Log-output Deployment
+              LO[Log-output Pod]
+              subgraph LO
+                  LW[Log-writer Container]
+                  LR[Log-reader Container]
+              end
+          end
+        
+          subgraph Volumes
+              PV[Persistent Volume<br>Contador]
+              LV[emptyDir Volume<br>Logs]
+          end
+      end
+    
+      User[Usuario] -->|GET /pingpong| I
+      User -->|GET /| I
+      User -->|GET /currentstatus| I
+    
+      I -->|/pingpong| PP
+      I -->|/| LR
+      I -->|/currentstatus| LR
+    
+      PP -->|Lee/Escribe| PV
+      LW -->|Lee| PV
+      LW -->|Escribe| LV
+      LR -->|Lee| LV
+    
+      %% Endpoints específicos
+      style LR fill:#fff2cc,stroke:#333,stroke-width:2px
+      style I fill:#c9daf8,stroke:#333,stroke-width:2px
+    
+      %% Leyenda
+      Legend[<
+          <b>Endpoints Log-reader:</b><br/>
+          • / → Muestra todo el contenido del log<br/>
+          • /currentstatus → Muestra solo la última línea<br/>
+          • /health → Health check
+      >]
+    
+      classDef pod fill:#e6f7ff,stroke:#333,stroke-width:2px;
+      classDef container fill:#fff,stroke:#333,stroke-width:1px;
+      classDef storage fill:#d9ead3,stroke:#333,stroke-width:1px;
+      classDef ingress fill:#c9daf8,stroke:#333,stroke-width:2px;
+      classDef legend fill:#f9f9f9,stroke:#ddd,stroke-width:1px;
+    
+      class PP,LO pod;
+      class LW,LR container;
+      class PV,LV storage;
+      class I ingress;
+      class Legend legend;
+    ```
 ### Kubernets Resources
 
 #### Applications Resources (in manifests/\<app-name>)

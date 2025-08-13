@@ -10,4 +10,6 @@ COPY index.js .
 
 RUN mkdir -p /usr/src/app/shared-logs
 
+RUN mkdir -p /usr/src/app/shared-data
+
 CMD ["npm", "start"]

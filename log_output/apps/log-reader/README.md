@@ -2,7 +2,11 @@
 
 A simple Node.js web server that:
 
-* Read a log file and provides the content in the HTTP GET endpoint
+* Expose two HTTP GET endpoints:
+
+  * /logs : Read a log file and provides the content
+  
+  * /status: Read a log file and provides the last line
 
 * Prints "Server(<\app-name>) started in port ${PORT}" on startup
 
@@ -31,7 +35,7 @@ Execute in a defafult port(8080):
   ```bash
     $ npm start 
 
-    > log-reader@1.0.0 start
+    > log-reader@2.0.0 start
     > node index.js
 
     Server(log-reader) started on port 8080
@@ -41,7 +45,13 @@ Execute in a defafult port(8080):
 
   ```bash
   $ curl http://localhost:8080/logs
-  2025-08-08T18:35:58.065Z: 845616a-abd8-4d85-9851-64f7fc631222
+  2025-08-05T13:23:10.469Z: 32f4ad5-50e2-4373-99a5-af037858ba55. Ping / Pongs: 5
+  2025-08-05T13:23:15.476Z: 32f4ad5-50e2-4373-99a5-af037858ba55. Ping / Pongs: 7
+  ```
+
+  ```bash
+  $ curl http://localhost:8080/status
+  2025-08-05T13:23:15.476Z: 32f4ad5-50e2-4373-99a5-af037858ba55. Ping / Pongs: 7
   ```
 
 ## Building the Docker Image
@@ -49,7 +59,7 @@ Execute in a defafult port(8080):
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/log-reader:1.0 .
+  docker build -t <your-dockerhub-username>/log-reader:2.0 .
   ```
 
 ## Pushing to Docker Hub
@@ -63,7 +73,7 @@ Execute in a defafult port(8080):
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/log-reader:1.0
+  docker push <your-dockerhub-username>/log-reader:2.0
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-reader:1.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=1.0)
+Image was pushed to Docker Hub repo: [yakovyakov/log-reader:2.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=2.0)

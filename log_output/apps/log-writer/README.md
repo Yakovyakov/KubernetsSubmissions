@@ -4,19 +4,22 @@ A simple Node.js application that:
 
 * Generates a random string(version 4 UUID) on startup, stores it in memory
 
-* Write the saved random string to a log file every 5 seconds along with an ISO-format timestamp. The output format for the logs is exactly:
+ 
+* Every 5 seconds, it reads the counter saved in file (COUNTER_FILE), and write the saved random string and the counter along with an ISO-format timestamp to a log file. The output format for the logs is exactly:
 
   ```text
-  YYYY-MM-DDTHH:MM:SS.sssZ: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+  YYYY-MM-DDTHH:MM:SS.sssZ: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx. Ping / Pongs: <\counter>
   ```
 
   **Example output:**
 
     ```text
-    2025-07-25T14:30:45.128Z: 7b3e5b91-3c45-4a23-9a8b-12d4e6f8a2c1
+    2025-07-25T14:30:45.128Z: 7b3e5b91-3c45-4a23-9a8b-12d4e6f8a2c1. Ping / Pongs: 3
     ```
 
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
+
+* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
 
 ## Running the Application Locally
 
@@ -37,11 +40,11 @@ A simple Node.js application that:
   ```bash
     $ npm start 
     
-    > log-writer@1.0.0 start
+    > log-writer@2.0.0 start
     > node index.js
     
-    2025-08-05T13:23:10.469Z: 32f4ad5-50e2-4373-99a5-af037858ba55  # <- logs in stdout>
-    2025-08-05T13:23:15.476Z: 32f4ad5-50e2-4373-99a5-af037858ba55 # <- logs in stdout>
+    2025-08-05T13:23:10.469Z: 32f4ad5-50e2-4373-99a5-af037858ba55Ping / Pongs: 5  # <- logs in stdout>
+    2025-08-05T13:23:15.476Z: 32f4ad5-50e2-4373-99a5-af037858ba55. Ping / Pongs: 7 # <- logs in stdout>
 
   ```
 
@@ -49,8 +52,8 @@ A simple Node.js application that:
 
   ```bash
   $ cat ./shared-logs/output.log
-    2025-08-05T13:23:10.469Z: 32f4ad5-50e2-4373-99a5-af037858ba55
-    2025-08-05T13:23:15.476Z: 32f4ad5-50e2-4373-99a5-af037858ba55
+    2025-08-05T13:23:10.469Z: 32f4ad5-50e2-4373-99a5-af037858ba55. Ping / Pongs: 5
+    2025-08-05T13:23:15.476Z: 32f4ad5-50e2-4373-99a5-af037858ba55. Ping / Pongs: 7
   ```
 
 ## Building the Docker Image
@@ -58,7 +61,7 @@ A simple Node.js application that:
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/log-writer:1.0 .
+  docker build -t <your-dockerhub-username>/log-writer:2.0 .
   ```
 
 ## Pushing to Docker Hub
@@ -72,7 +75,7 @@ A simple Node.js application that:
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/log-writer:1.0
+  docker push <your-dockerhub-username>/log-writer:2.0
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-writer:1.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=1.0)
+Image was pushed to Docker Hub repo: [yakovyakov/log-writer:2.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=2.0)

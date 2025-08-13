@@ -8,4 +8,6 @@ RUN npm ci
 
 COPY index.js .
 
+RUN mkdir /usr/src/app/shared-data
+
 CMD ["npm", "start"]

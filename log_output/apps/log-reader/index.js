@@ -8,7 +8,23 @@ const PORT = process.env.PORT || 8080;
 const LOG_FILE = process.env.LOG_FILE_PATH || path.join(__dirname, 'shared-logs', 'output.log');
 
 
-// Endpoint /logs
+// Endpoints
+// status
+app.get('/status', (req, res) => {
+
+  fs.readFile(LOG_FILE, 'utf-8', (err, data) => {
+    if (err) {
+      res.status(500).send('Error reading log file');
+    } else {
+      const lines = data.split('\n').filter(line => line.trim('') !== '');
+      const lastLine = lines.length > 0 ? lines[lines.length - 1] : 'Log file is empty';
+      res.type('text/plain').send(lastLine);
+    }
+  });
+});
+
+// logs
+
 app.get('/logs', (req, res) => {
 
   fs.readFile(LOG_FILE, 'utf-8', (err, data) => {

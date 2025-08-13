@@ -6,9 +6,11 @@ A simple Node.js web server that:
 
 * Expose a GET /pingpong endpoint that return "pong <current_counter>"
 
-* Increments the counter with each request (start at 0)
+* Increments the counter with each request (start at 0), and save the counter in a file
 
 * Configurable port via environment variable (PORT)
+
+* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
 
 ## Running the Application Locally
 
@@ -31,7 +33,7 @@ Execute in a defafult port(3001):
   ```bash
     $ npm start 
 
-  > ping-pong-app@1.0.0 start
+  > ping-pong-app@2.0.0 start
   > node index.js
 
   Ping-pong service started on port 3001
@@ -57,7 +59,7 @@ Execute in a defafult port(3001):
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/pingpong-app:1.0 .
+  docker build -t <your-dockerhub-username>/pingpong-app:2.0 .
   ```
 
 ## Pushing to Docker Hub
@@ -71,7 +73,7 @@ Execute in a defafult port(3001):
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/pingpong-app:1.0
+  docker push <your-dockerhub-username>/pingpong-app:2.0
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:1.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=1.0)
+Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=2.0)
