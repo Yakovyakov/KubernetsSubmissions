@@ -1,4 +1,6 @@
-# Kubernetes Exercise 1.10
+# Kubernetes Exercise 1.11
+
+Persisting data
 
 **Notes:**
 
@@ -9,6 +11,11 @@
 * Create a log-reader application
 
 * The manifest folder was renamed to **manifests**
+
+**Fixes:**
+
+* Fixed command to create a cluster without traefik
+
 
 ## Directory Structure
 
@@ -108,7 +115,7 @@ Since we'll use **ingress-nginx**, we need ot disable or remove **Traefik** (pre
     ```bash
     k3d cluster delete # Delete a default cluster
 
-    k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s=arg "--disable=traefik@serv:0" # Disable Traefik
+    k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0" # Disable Traefik
     ```
 
 2. Option B: Manually Remove Traefik
@@ -142,7 +149,8 @@ Expected ouput
   ```
 ### Diagram 
 
-  graph TD
+  ```mermaid
+    graph TD
       subgraph Kubernetes Cluster
           subgraph Ingress
               I[Ingress Controller]
@@ -167,29 +175,22 @@ Expected ouput
       end
     
       User[Usuario] -->|GET /pingpong| I
-      User -->|GET /| I
-      User -->|GET /currentstatus| I
+      User -->|GET /logs| I
+      User -->|GET /status| I
     
       I -->|/pingpong| PP
-      I -->|/| LR
-      I -->|/currentstatus| LR
+      I -->|/logs| LR
+      I -->|/status| LR
     
-      PP -->|Lee/Escribe| PV
-      LW -->|Lee| PV
-      LW -->|Escribe| LV
-      LR -->|Lee| LV
+      PP -->|Read/Write| PV
+      LW -->|Read| PV
+      LW -->|Write| LV
+      LR -->|Read| LV
     
       %% Endpoints específicos
       style LR fill:#fff2cc,stroke:#333,stroke-width:2px
       style I fill:#c9daf8,stroke:#333,stroke-width:2px
-    
-      %% Leyenda
-      Legend[<
-          <b>Endpoints Log-reader:</b><br/>
-          • / → Muestra todo el contenido del log<br/>
-          • /currentstatus → Muestra solo la última línea<br/>
-          • /health → Health check
-      >]
+  
     
       classDef pod fill:#e6f7ff,stroke:#333,stroke-width:2px;
       classDef container fill:#fff,stroke:#333,stroke-width:1px;
@@ -202,7 +203,7 @@ Expected ouput
       class PV,LV storage;
       class I ingress;
       class Legend legend;
-    ```
+  ```
 ### Kubernets Resources
 
 #### Applications Resources (in manifests/\<app-name>)
@@ -242,7 +243,14 @@ The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingr
     - host: ""
       http:
         paths:
-          - path: /logs # change endpoint /status for /logs
+          - path: /status 
+            pathType: Prefix
+            backend:
+              service:
+                name: logoutput-svc
+                port:
+                  number: 2345
+          - path: /logs
             pathType: Prefix
             backend:
               service:
@@ -302,7 +310,7 @@ The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingr
 
   Applications (log-writer and log-reader) are running in a same Pod (logoutput-dep-77df89f9c6-8p78n) as we can see:
   
-  ```bash
+  ```file
   Name:             logoutput-dep-77df89f9c6-8p78n
   Namespace:        default
   Priority:         0

@@ -15,6 +15,13 @@ spec:
               name: logoutput-svc
               port:
                 number: 2345
+        - path: /status       # endpoint 
+          pathType: Prefix
+          backend:
+            service:
+              name: logoutput-svc
+              port:
+                number: 2345
         - path: /pingpong
           pathType: Prefix
           backend:

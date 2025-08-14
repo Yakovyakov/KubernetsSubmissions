@@ -14,8 +14,16 @@ spec:
     spec:
       containers:
         - name: pingpong
-          image: yakovyakov/pingpong-app:1.0
+          image: yakovyakov/pingpong-app:2.0
+          volumeMounts:
+            - name: counter-storage
+              mountPath: /usr/src/app/shared-data
           env:
             - name: PORT
               value: "3002"
-
+            - name: COUNTER_FILE_PATH
+              value: "/usr/src/app/shared-data/counter.txt"
+      volumes:
+        - name: counter-storage
+          persistentVolumeClaim:
+            claimName: counter-pvc
