@@ -1,48 +1,94 @@
-# Kubernetes Exercise 1.11
+# Kubernetes Exercise 1.11 - Persisting Data with Persistent Volumes
 
-Persisting data
+**Objective:** Implement persistent storage for applications using Kubernetes PersistentVolumes and PersistentVolumeClaims.
 
-**Notes:**
+## Key Concepts
 
-* Split the Log Output application into two diferent containers within a single pod
+* PersistentVolume (PV): Cluster-wide storage resource
+* PersistentVolumeClaim (PVC): Pod's request for storage
+* Shared Storage: Multiple pods accessing the same persistent storage
 
-* Create a log-writer application
+## Storage Configuration
 
-* Create a log-reader application
+### Persistent Volume Setup
 
-* The manifest folder was renamed to **manifests**
+The cluster uses a hostPath PersistentVolume for counter data:
 
-**Fixes:**
+  ```yaml
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: counter-pv
+    labels:
+      type: local
+      app: ping-pong-counter
+  spec:
+    storageClassName: counter-storage
+    capacity:
+      storage: 1Gi
+    volumeMode: Filesystem
+    accessModes:
+      - ReadWriteMany # Multiple pods
+    persistentVolumeReclaimPolicy: Retain # Retain data
+    hostPath:
+      path: /mnt/data/kube/counter
+      type: DirectoryOrCreate    
+    nodeAffinity:
+      required:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - k3d-k3s-default-agent-0
+  ```
 
-* Fixed command to create a cluster without traefik
+### Persistent Volume Claim
 
+Applications request storage through this PVC:
 
+  ```yaml
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: counter-pvc # name of the volume claim, this will be used in the deployment
+  spec:
+    storageClassName: counter-storage # this is the name of the persistent volume we are claiming
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 1Gi
+  ```
 ## Directory Structure
 
   ```tree
   .
-  ├── apps                      # Applications code
-  │   ├── log-output            # old log-output app, only for historical props
-  │   ├── log-writer            # log-writer app
-  │   │   ├── Dockerfile        # Docker file
+  ├── apps                                # Applications code
+  │   ├── log-output                      # old log-output app, only for historical props
+  │   ├── log-writer                      # log-writer app
+  │   │   ├── Dockerfile                  # Docker file
   │   │   ├── index.js
   │   │   └── package.json
-  │   ├── log-reader            # log-reader app
-  │   │   ├── Dockerfile        # Docker file
+  │   ├── log-reader                      # log-reader app
+  │   │   ├── Dockerfile                  # Docker file
   │   │   ├── index.js
   │   │   └── package.json
-  │   ├── ping-pong             # ping-pong app
-  │   │   ├── Dockerfile        # Docker file
+  │   ├── ping-pong                       # ping-pong app
+  │   │   ├── Dockerfile                  # Docker file
   │   │   ├── index.js
   │   │   └── package.json
-  ├── manifests                 # Kubernetes configs
-  │   ├── log-output            # Contains multi-container Pod resources
-  │   │   ├── deployment.yaml   # Pod with log-writer + log-reader + shared volumen
-  │   │   └── service.yaml      # Expose only the log-reader
-  │   ├── ping-pong             # ping-pong App-specific resources
+  ├── manifests                           # Kubernetes configs
+  │   ├── log-output                      # Contains multi-container Pod resources
+  │   │   ├── deployment.yaml             # Pod with log-writer + log-reader + shared volumes
+  │   │   └── service.yaml                # Expose only the log-reader
+  │   ├── ping-pong                       # ping-pong App-specific resources + shared volume
   │   │   ├── deployment.yaml
   │   │   └── service.yaml
-  │   └── ingress.yaml          # A commun Traffic routing
+  │   ├── storage                         # Storage Configuration
+  │   │   ├── persistenvolume.yaml
+  │   │   └── persistenvolumeclaim.yaml
+  │   └── ingress.yaml                    # A commun Traffic routing
   └── README.md
  
   ```
@@ -104,50 +150,39 @@ Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.0](https://hub.d
 
 Application: [apps/ping-pong](./apps/ping-pong/)
 
-## Kubernetes
+## Kubernets Resources
 
-### Initial setup
+### Deployments Configurations
 
-Since we'll use **ingress-nginx**, we need ot disable or remove **Traefik** (pre-installed in k3d)
 
-1. Option A: Recreate the Cluster
+  * log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml).
 
-    ```bash
-    k3d cluster delete # Delete a default cluster
+    * Multi-container pod with shared volumes:
+      * emptyDir for logs (shared between writer and reader)
+      * Persistent Volume Claim for counter data
 
-    k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0" # Disable Traefik
-    ```
+  * ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
+    * Single-container pod with:
+      *Persistent Volume Claim for counter data
 
-2. Option B: Manually Remove Traefik
+### Services Configurations
 
-    ```bash
-    kubectl delete -n kube-system deploy traefik
+Both applications expose services on port 2345
 
-    kubectl delete -n kube-system svc traefik
-    ```
+  * log-output: [service.yaml](./manifests/log-output/service.yaml)
+    * Expose only the log-reader container.
+  * ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
 
-### Install Nginx Ingress Controller
+### Ingress Configuration
 
-Deploy the official ingress-nginx using **kubectl**
+The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingress Controller to route traffic to both applications.
 
-  ```bash
-  kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/provider/cloud/deploy.yaml
-  ```
+Routes traffic to:
 
-Verify installation:
+* /pingpong → ping-pong service
+* /logs and /status → log-reader service
 
-  ```bash
-  kubectl get pods -n ingress-nginx
-  ```
-
-Expected ouput
-
-  ```text
-  NAME                                        READY   STATUS    RESTARTS   AGE
-  ingress-nginx-controller-6d45bc7765-qnptz   1/1     Running   0          179m
-
-  ```
-### Diagram 
+## Diagram 
 
   ```mermaid
     graph TD
@@ -162,14 +197,14 @@ Expected ouput
         
           subgraph Log-output Deployment
               LO[Log-output Pod]
-              subgraph LO
+              subgraph LO[Log-output Pod]
                   LW[Log-writer Container]
                   LR[Log-reader Container]
               end
           end
         
           subgraph Volumes
-              PV[Persistent Volume<br>Contador]
+              PV[(Persistent Volume<br>Contador)]
               LV[emptyDir Volume<br>Logs]
           end
       end
@@ -187,16 +222,7 @@ Expected ouput
       LW -->|Write| LV
       LR -->|Read| LV
     
-      %% Endpoints específicos
-      style LR fill:#fff2cc,stroke:#333,stroke-width:2px
-      style I fill:#c9daf8,stroke:#333,stroke-width:2px
-  
-    
-      classDef pod fill:#e6f7ff,stroke:#333,stroke-width:2px;
-      classDef container fill:#fff,stroke:#333,stroke-width:1px;
-      classDef storage fill:#d9ead3,stroke:#333,stroke-width:1px;
-      classDef ingress fill:#c9daf8,stroke:#333,stroke-width:2px;
-      classDef legend fill:#f9f9f9,stroke:#ddd,stroke-width:1px;
+      
     
       class PP,LO pod;
       class LW,LR container;
@@ -204,228 +230,120 @@ Expected ouput
       class I ingress;
       class Legend legend;
   ```
-### Kubernets Resources
 
-#### Applications Resources (in manifests/\<app-name>)
+### Key Observations
 
-We need to configure the followings resources:
+  * Both applications share the same PVC (counter-pvc)
 
-1. Deployment:
+  * Data survives pod restarts due to persistentVolumeReclaimPolicy: Retain
 
-    * log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml).
+  * Log data is ephemeral (emptyDir) while counter data is persistent
 
-    * Resources to deploy a multi-container Pod with a log writer and reader. Pod structe:
-      * log-reader Container that uses a volume mount (/usr/src/app/shared-logs)
-      * log-writer Container that uses a volume mount (/usr/src/app/shared-logs)
-      * Shared Volume:
-        * emptyDir: Temporary storage shared between containers in a same Pod
+  * Node affinity ensures PV is always available on the same node
 
-    * ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
+## Initial setup
 
-2. Service:
-
-    * log-output: [service.yaml](./manifests/log-output/service.yaml)
-      * Expose only the log-reader container.
-    * ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
-
-#### Kubernets Ingress Configuration with NGINX
-
-The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingress Controller to route traffic to both applications:
-
-  ```file
-  apiVersion: networking.k8s.io/v1
-  kind: Ingress
-  metadata:
-    name: shared-ingress
-  spec:
-    ingressClassName: nginx
-    rules:
-    - host: ""
-      http:
-        paths:
-          - path: /status 
-            pathType: Prefix
-            backend:
-              service:
-                name: logoutput-svc
-                port:
-                  number: 2345
-          - path: /logs
-            pathType: Prefix
-            backend:
-              service:
-                name: logoutput-svc
-                port:
-                  number: 2345
-          - path: /pingpong
-            pathType: Prefix
-            backend:
-              service:
-                name: pingpong-svc
-                port:
-                  number: 2345
-  ```
-
-### Apply Kubernets configurations
+1. Create cluster (without Traefik):
 
   ```bash
+  k3d cluster delete
+  k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0"
+  ```
+
+2. Install Nginx Ingress Controller:
+
+  ```bash
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+  ```
+  
+### Deployment
+
+Apply all configurations:
+
+  ```bash
+  kubectl apply -f manifests/storage      # storage config
   kubectl apply -f manifests/log-output   # multi-container Pod with a log writer and reader 
   kubectl apply -f manifests/ping-pong    # ping-pong configs 
   kubectl apply -f manifests/ingress.yaml # shared ingress
   ```
 
-### Verification and Monitoring
+## Access Applications
 
-#### View deployments, pods, services and ingress
+* PingPong: `curl http://localhost:8081/pingpong`
 
-  ```bash
-  $ kubectl get deployments
-  NAME            READY   UP-TO-DATE   AVAILABLE   AGE
-  logoutput-dep   1/1     1            1           97s
-  pingpong-dep    0/1     1            0           9m52s
+* Logs: `curl http://localhost:8081/logs`
 
+* Status: `curl http://localhost:8081/status`
 
-  $ kubectl get pods
-  NAME                             READY   STATUS             RESTARTS        AGE
-  debug                            1/1     Running            1 (2d17h ago)   4d16h
-  logoutput-dep-77df89f9c6-8p78n   2/2     Running            0               2m7s
-  pingpong-dep-5969cc986f-h7znj    0/1     ImagePullBackOff   0               10m
-
-  
-  $ kubectl get svc
-  NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-  kubernetes      ClusterIP   10.43.0.1      <none>        443/TCP    2d20h
-  logoutput-svc   ClusterIP   10.43.142.78   <none>        2345/TCP   158m
-  pingpong-svc    ClusterIP   10.43.98.68    <none>        2345/TCP   3h39m
-
-  $ kubectl get ing
-  NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-  kubernetes      ClusterIP   10.43.0.1      <none>        443/TCP    6d18h
-  logoutput-svc   ClusterIP   10.43.53.206   <none>        2345/TCP   10m
-  pingpong-svc    ClusterIP   10.43.16.115   <none>        2345/TCP   10m
-
-  ```
-  
-#### View multi-container Pod
-
-  Applications (log-writer and log-reader) are running in a same Pod (logoutput-dep-77df89f9c6-8p78n) as we can see:
-  
-  ```file
-  Name:             logoutput-dep-77df89f9c6-8p78n
-  Namespace:        default
-  Priority:         0
-  Service Account:  default
-  Node:             k3d-k3s-default-agent-1/192.168.16.4
-  Start Time:       Mon, 11 Aug 2025 09:26:49 -0400
-  Labels:           app=logoutput
-                  pod-template-hash=77df89f9c6
-  Annotations:      <none>
-  Status:           Running
-  IP:               10.42.2.15
-  IPs:
-    IP:           10.42.2.15
-  Controlled By:  ReplicaSet/logoutput-dep-77df89f9c6
-  Containers:
-    log-writer:
-      Container ID:   containerd://8a0589d09135db4172c50ecd7d2d9cc95f78cac1c891514e8eb94f9ad81325b5
-      Image:          yakovyakov/log-writer:1.0
-      Image ID:       docker.io/yakovyakov/log-writer@sha256:a2ecd54149e895322f6ab6443ef229212c8893369e5b656438ed12b9d7506184
-      Port:           <none>
-      Host Port:      <none>
-      State:          Running
-        Started:      Mon, 11 Aug 2025 09:27:36 -0400
-      Ready:          True
-      Restart Count:  0
-      Environment:    <none>
-      Mounts:
-        /usr/src/app/shared-logs from shared-logs (rw)
-        /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-frml7 (ro)
-    log-reader:
-      Container ID:   containerd://fc1fa5ce1abbcda5b043f229e20995b73c800a3f58c5b03c53461e299389fc02
-      Image:          yakovyakov/log-reader:1.0
-      Image ID:       docker.io/yakovyakov/log-reader@sha256:5d948af84788c2d41d40cabbc78ffd2b96fcf9e6cb8407b8d3c2d083b7864741
-      Port:           <none>
-      Host Port:      <none>
-      State:          Running
-        Started:      Mon, 11 Aug 2025 09:27:58 -0400
-      Ready:          True
-      Restart Count:  0
-      Environment:
-        PORT:  3001
-      Mounts:
-        /usr/src/app/shared-logs from shared-logs (rw)
-        /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-frml7 (ro)
-  Conditions:
-    Type                        Status
-    PodReadyToStartContainers   True 
-    Initialized                 True 
-    Ready                       True 
-  ContainersReady             True 
-  PodScheduled                True 
-  Volumes:
-    shared-logs:
-      Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
-      Medium:     
-      SizeLimit:  <unset>
-    kube-api-access-frml7:
-      Type:                    Projected (a volume that contains injected data from multiple sources)
-      TokenExpirationSeconds:  3607
-      ConfigMapName:           kube-root-ca.crt
-      Optional:                false
-      DownwardAPI:             true
-  QoS Class:                   BestEffort
-  Node-Selectors:              <none>
-  Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
-                               node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
-  Events:
-    Type    Reason     Age    From               Message
-    ----    ------     ----   ----               -------
-    Normal  Scheduled  5m8s   default-scheduler  Successfully assigned default/logoutput-dep-77df89f9c6-8p78n to k3d-k3s-default-agent-1
-    Normal  Pulling    5m7s   kubelet            Pulling image "yakovyakov/log-writer:1.0"
-    Normal  Pulled     4m23s  kubelet            Successfully pulled image "yakovyakov/log-writer:1.0" in 43.794s (43.794s including waiting). Image size: 59040899 bytes.
-    Normal  Created    4m22s  kubelet            Created container log-writer
-    Normal  Started    4m22s  kubelet            Started container log-writer
-    Normal  Pulling    4m22s  kubelet            Pulling image "yakovyakov/log-reader:1.0"
-    Normal  Pulled     4m     kubelet            Successfully pulled image "yakovyakov/log-reader:1.0" in 19.475s (19.475s including waiting). Image size: 60497323 bytes.
-    Normal  Created    4m     kubelet            Created container log-reader
-    Normal  Started    4m     kubelet            Started container log-reader
-  ```
-
-#### View logs from stdout
+## Verification and Monitoring
 
   ```bash
-  #kubectl logs -f <pod-name>
-  $ kubectl logs -f logoutput-dep-77df89f9c6-8p78n
-  Defaulted container "log-writer" out of: log-writer, log-reader
+  # Check storage
+  kubectl get pv,pvc
 
-  > log-writer@1.0.0 start
-  > node index.js
-  ```
+  # Check pods
+  kubectl get pods
 
-### Connecting from outside of the cluster
-
-The ingress is listening on port 80. As we already opened the port there we can acccess the applications enpoints on:
-
-* log-output: "http\://localhost:8081/logs"
-
-  ```bash
+  # Test endpoints
+  curl http://localhost:8081/pingpong
   curl http://localhost:8081/logs
-  2025-08-11T13:27:40.687Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:27:45.692Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:27:50.696Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:27:57.594Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:28:02.598Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:28:07.602Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:28:12.606Z: 6a704db-2942-4645-a248-0b999029dd08
-  2025-08-11T13:28:17.610Z: 6a704db-2942-4645-a248-0b999029dd08
-  ```
-* ping-pong: "http\://localhost:8081/pingpong"
+  curl http://localhost:8081/status
+```
+#### Testing persistence
 
   ```bash
-  $ curl http://localhost:8081/pingpong 
-  pong 1
+  ## 🧪 Persistence Testing
 
-  $ curl http://localhost:8081/pingpong 
-  pong 2
+  # 1. Get initial counter value
+  INITIAL_VALUE=$(curl -s http://localhost:8081/pingpong | awk '{print $2}')
+  echo "Initial counter value: $INITIAL_VALUE"
 
+  # 2. Increment counter 3 times
+  for i in {1..3}; do
+    curl -s http://localhost:8081/pingpong
+  done
+
+  # 3. Get current value
+  CURRENT_VALUE=$(curl -s http://localhost:8081/pingpong | awk '{print $2}')
+  echo "Current counter value: $CURRENT_VALUE"
+
+  # 4. Force delete all application pods
+  kubectl delete pods -l app=pingpong
+  kubectl delete pods -l app=logoutput
+
+  # 5. Wait for pods to restart (30-60 seconds)
+  echo "Waiting for pods to restart..."
+  sleep 45
+
+  # 6. Verify new pods are running
+  kubectl get pods -l app=pingpong
+  kubectl get pods -l app=logoutput
+
+  # 7. Check persisted value
+  RESTORED_VALUE=$(curl -s http://localhost:8081/pingpong | awk '{print $2}')
+  echo "Restored counter value: $RESTORED_VALUE"
+
+  # 8. Validation
+  if [ "$RESTORED_VALUE" -gt "$INITIAL_VALUE" ]; then
+    echo "✅ Persistence test PASSED - Counter maintained across pod restarts"
+  else
+    echo "❌ Persistence test FAILED - Counter was not persisted"
+    exit 1
+  fi
+  ```
+
+  Expected output:
+
+  ```bash
+  Initial counter value: 16
+  pong 17pong 18pong 19Current counter value: 20
+  pod "pingpong-dep-54457bbdfb-27l2h" deleted
+  pod "logoutput-dep-76748df497-8c8hx" deleted
+  Waiting for pods to restart...
+  NAME                            READY   STATUS    RESTARTS   AGE
+  pingpong-dep-54457bbdfb-vbd5q   1/1     Running   0          48s
+  NAME                             READY   STATUS    RESTARTS   AGE
+  logoutput-dep-76748df497-kn2ss   2/2     Running   0          46s
+  Restored counter value: 21
+  ✅ Persistence test PASSED - Counter maintained across pod restarts
   ```
