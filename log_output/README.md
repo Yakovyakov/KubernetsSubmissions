@@ -60,6 +60,7 @@ Applications request storage through this PVC:
       requests:
         storage: 1Gi
   ```
+
 ## Directory Structure
 
   ```tree
@@ -101,7 +102,6 @@ A simple Node.js application that:
 
 * Generates a random string(version 4 UUID) on startup, stores it in memory
 
- 
 * Every 5 seconds, it reads the counter saved in file (COUNTER_FILE), and write the saved random string and the counter along with an ISO-format timestamp to a log file.
 
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
@@ -154,24 +154,23 @@ Application: [apps/ping-pong](./apps/ping-pong/)
 
 ### Deployments Configurations
 
+* log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml).
 
-  * log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml).
+  * Multi-container pod with shared volumes:
+    * emptyDir for logs (shared between writer and reader)
+    * Persistent Volume Claim for counter data
 
-    * Multi-container pod with shared volumes:
-      * emptyDir for logs (shared between writer and reader)
-      * Persistent Volume Claim for counter data
-
-  * ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
-    * Single-container pod with:
-      *Persistent Volume Claim for counter data
+* ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
+  * Single-container pod with:
+    *Persistent Volume Claim for counter data
 
 ### Services Configurations
 
 Both applications expose services on port 2345
 
-  * log-output: [service.yaml](./manifests/log-output/service.yaml)
-    * Expose only the log-reader container.
-  * ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
+* log-output: [service.yaml](./manifests/log-output/service.yaml)
+  * Expose only the log-reader container.
+* ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
 
 ### Ingress Configuration
 
@@ -182,7 +181,7 @@ Routes traffic to:
 * /pingpong → ping-pong service
 * /logs and /status → log-reader service
 
-## Diagram 
+## Diagram
 
   ```mermaid
     graph TD
@@ -233,22 +232,22 @@ Routes traffic to:
 
 ### Key Observations
 
-  * Both applications share the same PVC (counter-pvc)
+* Both applications share the same PVC (counter-pvc)
 
-  * Data survives pod restarts due to persistentVolumeReclaimPolicy: Retain
+* Data survives pod restarts due to persistentVolumeReclaimPolicy: Retain
 
-  * Log data is ephemeral (emptyDir) while counter data is persistent
+* Log data is ephemeral (emptyDir) while counter data is persistent
 
-  * Node affinity ensures PV is always available on the same node
+* Node affinity ensures PV is always available on the same node
 
 ## Initial setup
 
 1. Create cluster (without Traefik):
 
-  ```bash
-  k3d cluster delete
-  k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0"
-  ```
+    ```bash
+    k3d cluster delete
+    k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0"
+    ```
 
 2. Install Nginx Ingress Controller:
 
@@ -289,7 +288,8 @@ Apply all configurations:
   curl http://localhost:8081/logs
   curl http://localhost:8081/status
 ```
-#### Testing persistence
+
+### Testing persistence
 
   ```bash
   ## 🧪 Persistence Testing

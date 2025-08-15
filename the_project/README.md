@@ -4,7 +4,7 @@ Switch to using Ingress instead of NodePort to access the project
 
 The solution description is [here](#description-of-the-solution-to-exercise-18)
 
-**Notes:** 
+**Notes:**
 
 * The deployment name was changed to project-todo-dep
 
@@ -172,6 +172,7 @@ The resulting file ingress.yaml looks like this:
                 port:
                   number: 1234
   ```
+  
 ### Apply Kubernetes configurations
 
   ```bash
