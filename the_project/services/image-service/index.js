@@ -8,8 +8,8 @@ const lockfile = require('lockfile');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const CACHE_TIME = process.env.INTERVAL || 10 * 60 * 1000; // 10 min
-const IMAGE_DIR = process.env.IMAGE_DIR_PATH || __dirname;
+const CACHE_TIME = process.env.CACHE_TIME || 10 * 60 * 1000; // 10 min
+const IMAGE_DIR = process.env.IMAGE_DIR || __dirname;
 const IMAGE_PATH = path.join(IMAGE_DIR, 'current_image.jpg');
 const TEMP_IMAGE_PATH = path.join(IMAGE_DIR, 'temp_image.jpg');
 const LOCK_FILE = path.join(IMAGE_DIR, 'image.lock');

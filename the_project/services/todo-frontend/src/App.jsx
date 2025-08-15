@@ -12,7 +12,7 @@ function App() {
       try {
         setIsLoading(true)
         const timestamp = new Date().getTime();
-        const url = `/api/random-image?t=${timestamp}`
+        const url = `/api/image-service/random-image?t=${timestamp}`
         setImageUrl(url);
 
       } catch (error) {
