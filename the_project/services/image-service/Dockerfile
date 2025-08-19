@@ -8,6 +8,6 @@ RUN npm ci
 
 COPY index.js .
 
-RUN mkdir /usr/src/app/shared-data
+RUN mkdir /usr/src/app/image-cache
 
 CMD ["npm", "start"]

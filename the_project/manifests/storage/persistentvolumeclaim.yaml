@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-cache-pvc
+spec:
+  storageClassName: image-storage  # Debe coincidir
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  selector:  # Opcional: asegura que usa este PV
+    matchLabels:
+      app: image-cache

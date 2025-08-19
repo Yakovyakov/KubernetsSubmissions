@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-service-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-service
+  template:
+    metadata:
+      labels:
+        app: image-service
+    spec:
+      containers:
+        - name: image-service
+          image: yakovyakov/image-service:1.0
+          volumeMounts:
+            - name: image-storage
+              mountPath: /usr/src/app/image-cache
+          env:
+            - name: PORT
+              value: "3002"
+            - name: IMAGE_DIR
+              value: "/usr/src/app/image-cache"
+      volumes:
+        - name: image-storage
+          persistentVolumeClaim:
+            claimName: image-cache-pvc
