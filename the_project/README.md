@@ -168,7 +168,7 @@ Apply all configurations:
 
 Normal Flow
 
-* Visit http://localhost:8081
+* Visit <http://localhost:8081>
 * See a random image
 * Refresh → same image for 10 minutes
 * After 10 minutes + one grace request → new image

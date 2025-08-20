@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: pingpong
-          image: yakovyakov/pingpong-app:2.0
+          image: yakovyakov/pingpong-app:2.1
           volumeMounts:
             - name: counter-storage
               mountPath: /usr/src/app/shared-data

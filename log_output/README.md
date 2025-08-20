@@ -1,65 +1,25 @@
-# Kubernetes Exercise 1.11 - Persisting Data with Persistent Volumes
+# Kubernetes Exercise 2.1: Connecting Pods via HTTP
 
-**Objective:** Implement persistent storage for applications using Kubernetes PersistentVolumes and PersistentVolumeClaims.
+This exercise replaces file-based communication between the `log-output` and `ping-pong` applications with **HTTP-based communication**. The `log-writer` now fetches the ping counter from the `ping-pong` service via HTTP instead of reading it from a shared volume.
 
-## Key Concepts
+## Objective
 
-* PersistentVolume (PV): Cluster-wide storage resource
-* PersistentVolumeClaim (PVC): Pod's request for storage
-* Shared Storage: Multiple pods accessing the same persistent storage
+* Replace shared file storage (`counter.txt`) between `log-output` and `ping-pong` apps with an HTTP call.
+* Remove the PersistentVolumeClaim (PVC) from the `log-writer` container.
+* Keep persistence in `ping-pong` (via PVC) to survive pod restarts.
+* Use a Kubernetes `Service` for internal pod-to-pod communication.
 
-## Storage Configuration
+## Components
 
-### Persistent Volume Setup
+| Component | Role |
+|--------|------|
+| `ping-pong` | Increments and persists a counter. Exposes `/pingpong` and `/pings` endpoints. |
+| `log-writer` | Generates a UUID and logs it every 5 seconds, including the current ping count fetched via HTTP. |
+| `log-reader` | Serves the log file via HTTP (`/logs`, `/status`). |
+| `pingpong-svc` | Kubernetes Service exposing `ping-pong` internally. |
+| `counter-pvc` | PVC used **only by `ping-pong`** to persist the counter across restarts. |
 
-The cluster uses a hostPath PersistentVolume for counter data:
-
-  ```yaml
-  apiVersion: v1
-  kind: PersistentVolume
-  metadata:
-    name: counter-pv
-    labels:
-      type: local
-      app: ping-pong-counter
-  spec:
-    storageClassName: counter-storage
-    capacity:
-      storage: 1Gi
-    volumeMode: Filesystem
-    accessModes:
-      - ReadWriteMany # Multiple pods
-    persistentVolumeReclaimPolicy: Retain # Retain data
-    hostPath:
-      path: /mnt/data/kube/counter
-      type: DirectoryOrCreate    
-    nodeAffinity:
-      required:
-        nodeSelectorTerms:
-        - matchExpressions:
-          - key: kubernetes.io/hostname
-            operator: In
-            values:
-            - k3d-k3s-default-agent-0
-  ```
-
-### Persistent Volume Claim
-
-Applications request storage through this PVC:
-
-  ```yaml
-  apiVersion: v1
-  kind: PersistentVolumeClaim
-  metadata:
-    name: counter-pvc # name of the volume claim, this will be used in the deployment
-  spec:
-    storageClassName: counter-storage # this is the name of the persistent volume we are claiming
-    accessModes:
-      - ReadWriteMany
-    resources:
-      requests:
-        storage: 1Gi
-  ```
+> 🔁 Communication: `log-writer` → `GET http://pingpong-svc:2345/pings`
 
 ## Directory Structure
 
@@ -102,13 +62,13 @@ A simple Node.js application that:
 
 * Generates a random string(version 4 UUID) on startup, stores it in memory
 
-* Every 5 seconds, it reads the counter saved in file (COUNTER_FILE), and write the saved random string and the counter along with an ISO-format timestamp to a log file.
+* Every 5 seconds, the service queries the GET endpoint at <\pingpong-server>/pings to retrieve the counter value, and write the saved random string and the counter along with an ISO-format timestamp to a log file.
 
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
-* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
+* Configurable pingpong-server via environment variable (PING_SERVER_URL), the default is "http\://localhost" (useful for local development)
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-writer:2.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=2.0)
+Image was pushed to Docker Hub repo: [yakovyakov/log-writer:3.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=3.0)
 
 Application: [apps/log-writer](./apps/log-writer/)
 
@@ -118,9 +78,9 @@ A simple Node.js web server that:
 
 * Expose two HTTP GET endpoints:
 
-  * /logs : Read a log file and provides the content
+  * `/logs` : Read a log file and provides the content
   
-  * /status: Read a log file and provides the last line
+  * `/status`: Read a log file and provides the last line
 
 * Prints "Server(<\app-name>) started in port ${PORT}" on startup
 
@@ -138,48 +98,33 @@ A simple Node.js web server that:
 
 * Maintains an in-memory request counter
 
-* Expose a GET /pingpong endpoint that return "pong <current_counter>"
+* Expose two HTTP GET endpoints:
 
-* Increments the counter with each request (start at 0), and save the counter in a file
+  * `/pings`: Returns the current counter as JSON: `{ "pings": <number> }`
+  
+  * `/pingpong`: return "pong <current_counter>". Increments the counter with each request (start at 0), and save the counter in a file
 
 * Configurable port via environment variable (PORT)
 
 * Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
 
-Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=2.0)
+Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.1](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=2.1)
 
 Application: [apps/ping-pong](./apps/ping-pong/)
 
 ## Kubernets Resources
 
-### Deployments Configurations
+| Resource | Purpose |
+|--------|---------|
+| [Deployment (pingpong-dep)](./manifests/ping-pong/deployment.yaml) | Runs the `ping-pong` app with counter persistence (PVC) |
+| [Deployment (logoutput-dep)](./manifests/log-output/deployment.yaml)  | Runs `log-writer` and `log-reader` (no PVC mounted) |
+| [Service (pingpong-svc)](./manifests/ping-pong/service.yaml) | Exposes `ping-pong` on port 2345|
+| [Service (logoutput-svc)](./manifests/log-output/service.yaml)| Exposes `log-reader` on port 2345 |
+| [PersistentVolume](./manifests/storage/persistentvolume.yaml)  | HostPath volume for persistent counter storage |
+| [PersistentVolumeClaim](./manifests/storage/persistentvolumeclaim.yaml) | Claim used by `ping-pong` to persist the counter |
+| `Ingress`  | Routes `/pingpong`, `/logs`, and `/status` to services |
 
-* log-output:  [deployment.yaml](./manifests/log-output/deployment.yaml).
-
-  * Multi-container pod with shared volumes:
-    * emptyDir for logs (shared between writer and reader)
-    * Persistent Volume Claim for counter data
-
-* ping-pong: [deployment.yaml](./manifests/ping-pong/deployment.yaml)
-  * Single-container pod with:
-    *Persistent Volume Claim for counter data
-
-### Services Configurations
-
-Both applications expose services on port 2345
-
-* log-output: [service.yaml](./manifests/log-output/service.yaml)
-  * Expose only the log-reader container.
-* ping-pong: [service.yaml](./manifests/ping-pong/service.yaml)
-
-### Ingress Configuration
-
-The [ingress.yaml](./manifests/ingress.yaml) file configures a shared Nginx Ingress Controller to route traffic to both applications.
-
-Routes traffic to:
-
-* /pingpong → ping-pong service
-* /logs and /status → log-reader service
+> 🔗 Communication: `log-writer` → `GET http://pingpong-svc:2345/pings`
 
 ## Diagram
 
@@ -189,10 +134,11 @@ Routes traffic to:
           subgraph Ingress
               I[Ingress Controller]
           end
-         
+          subgraph Deployments
           subgraph Ping-pong Deployment
               PP[Ping-pong Pod]
           end
+          
         
           subgraph Log-output Deployment
               LO[Log-output Pod]
@@ -201,7 +147,7 @@ Routes traffic to:
                   LR[Log-reader Container]
               end
           end
-        
+          end
           subgraph Volumes
               PV[(Persistent Volume<br>Contador)]
               LV[emptyDir Volume<br>Logs]
@@ -212,33 +158,24 @@ Routes traffic to:
       User -->|GET /logs| I
       User -->|GET /status| I
     
-      I -->|/pingpong| PP
-      I -->|/logs| LR
-      I -->|/status| LR
-    
+      I -->|GET /pingpong| PP
+      I -->|GET /logs| LR
+      I -->|GET /status| LR
+      LW -.->|GET /pings| PP
       PP -->|Read/Write| PV
-      LW -->|Read| PV
+      
       LW -->|Write| LV
       LR -->|Read| LV
+
     
       
     
       class PP,LO pod;
-      class LW,LR container;
+      class LW,LR,PP container;
       class PV,LV storage;
       class I ingress;
       class Legend legend;
   ```
-
-### Key Observations
-
-* Both applications share the same PVC (counter-pvc)
-
-* Data survives pod restarts due to persistentVolumeReclaimPolicy: Retain
-
-* Log data is ephemeral (emptyDir) while counter data is persistent
-
-* Node affinity ensures PV is always available on the same node
 
 ## Initial setup
 

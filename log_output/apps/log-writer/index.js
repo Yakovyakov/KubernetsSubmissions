@@ -1,9 +1,12 @@
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios')
 
 const LOG_FILE = process.env.LOG_FILE_PATH || path.join(__dirname, 'shared-logs', 'output.log');
 
-const COUNTER_FILE = process.env.COUNTER_FILE_PATH || path.join(__dirname, 'shared-data', 'count.txt');
+//const COUNTER_FILE = process.env.COUNTER_FILE_PATH || path.join(__dirname, 'shared-data', 'count.txt');
+
+const url = process.env.PING_SERVER_URL ? `${process.env.PING_SERVER_URL}/pings` : 'http://localhost/pings';
 
 function generateUUID() {
   return 'xxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -19,15 +22,19 @@ if (!fs.existsSync(LOG_FILE)) {
   fs.writeFileSync(LOG_FILE, '');
 }
 
-const writeLog = () => {
+async function getPings() {
+  try {
+    const response = await axios.get(url);
+    return response.data.pings;
+  } catch (error) {
+    console.error('Error fetching counter from ping-pong:', error.message);
+    return 0;
+  }
+}
+const writeLog = async () => {
   const timestamp = new Date().toISOString();
   let counter = 0;
-  try {
-    counter = parseInt(fs.readFileSync(COUNTER_FILE, 'utf-8'));
-
-  } catch (err) {
-    console.error(`Error readding counter: ${err.message}`);
-  }
+  counter = await getPings();
   
   const logLine = `${timestamp}: ${randomHash}. Ping / Pongs: ${counter}\n`;
 
@@ -38,7 +45,6 @@ const writeLog = () => {
       console.log(logLine.trim());
     }
   });
-  
 
   setTimeout(writeLog, 5000);
 }

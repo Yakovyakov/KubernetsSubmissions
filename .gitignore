@@ -5,3 +5,5 @@
 /log_output/apps/log-reader/node_modules
 /log_output/apps/log-writer/shared-logs
 /the_project/services/image-service/node_modules
+exercises.txt
+/log_output/apps/log-writer/node_modules
