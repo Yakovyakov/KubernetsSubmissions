@@ -14,15 +14,13 @@ spec:
     spec:
       containers:
         - name: log-writer
-          image: yakovyakov/log-writer:2.0
+          image: yakovyakov/log-writer:3.0
           volumeMounts:
             - name: shared-logs
               mountPath: /usr/src/app/shared-logs # log-writer write here
-            - name: counter-storage
-              mountPath: /usr/src/app/shared-data # Persistent volume
           env:
-            - name: COUNTER_FILE_PATH
-              value: "/usr/src/app/shared-data/counter.txt"
+            - name: PING_SERVER_URL
+              value: "http://pingpong-svc:2345"
         - name: log-reader
           image: yakovyakov/log-reader:2.0
           env:
@@ -34,9 +32,6 @@ spec:
       volumes:
         - name: shared-logs
           emptyDir: {}
-        - name: counter-storage
-          persistentVolumeClaim:
-            claimName: counter-pvc
 
 
 
