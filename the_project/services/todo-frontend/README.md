@@ -16,6 +16,16 @@ If you are developing a production application, we recommend using TypeScript wi
 
 React frontend application for Todo management with image display
 
+## Frontend Implementation
+
+| Features | Description |
+|----------|-------------|
+| Image | Displays an image by calling /api/image-service/random-image |
+| Input field | Text input for new todo |
+| Character limit | Max 140 characters enforced via `maxLength` and UI feedback |
+| Send button |  Disabled when input is empty or too long |
+| Todo list | Displays hardcoded todos (array in component state) |
+
 ## Local Development
 
 ```bash
@@ -28,7 +38,7 @@ npm run dev
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/todo-frontend:1.0 .
+  docker build -t <your-dockerhub-username>/todo-frontend:1.1 .
   ```
 
 ## Pushing to Docker Hub
@@ -42,7 +52,7 @@ npm run dev
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/todo-frontend:1.0
+  docker push <your-dockerhub-username>/todo-frontend:1.1
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/todo-frontend:1.0](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=1.0)
+Image was pushed to Docker Hub repo: [yakovyakov/todo-frontend:1.1](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=1.1)

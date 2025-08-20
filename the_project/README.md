@@ -1,13 +1,34 @@
-# Kubernetes Exercise 1.12
+# Kubernetes Exercise 1.13
 
-Display a random image from Lorem Picsum  that changes every 10 minutes. The image is cached in a persistent volume to survive container restarts and avoid repeated external API calls.
+Todo App Functionality
+
+Add basic todo input and display functionality to the frontend.
 
 ## Goal
 
-* Fetch a random image from <https://picsum.photos/1200>
-* Cache it in a volume
-* Serve the same image for 10 minutes (with one grace period)
-* Survive container restarts
+* Add an input field for new todos
+* Prevent input longer than 140 characters
+* Add a "Send" button (no backend integration yet)
+* Display a list of hardcoded todos
+* Keep the hourly image from the previous exercise
+
+## Frontend Implementation
+
+| Features | Description |
+|----------|-------------|
+| Image | Displays an image by calling /api/image-service/random-image |
+| Input field | Text input for new todo |
+| Character limit | Max 140 characters enforced via `maxLength` and UI feedback |
+| Send button |  Disabled when input is empty or too long |
+| Todo list | Displays hardcoded todos (array in component state) |
+
+### Validation Rules
+
+| RULE | HOW ENFORCED |
+|------|--------------|
+| Max 140 characters | `maxLength="140"` on `<\input>` |
+| Send button disabled |  When `input.length === 0` or `input.length > 140` |
+| Real-time counter | Display: `(120/140)` below input|
 
 ## The project structure
 
@@ -47,7 +68,7 @@ Display a random image from Lorem Picsum  that changes every 10 minutes. The ima
 * Uses SPA routing (fallback to index.html for all routes).
 
 Image was pushed to Docker Hub repo: [yakovyakov/todo-frontend:
-1.0](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=1.0)
+1.1](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=1.1)
 
 Application: [services/todo-frontend](./services/todo-frontend/)
 
@@ -151,6 +172,14 @@ Normal Flow
 * See a random image
 * Refresh → same image for 10 minutes
 * After 10 minutes + one grace request → new image
+* Verify:
+  * Image is displayed
+  * Input field and "Send" button are visible
+  * Hardcoded todos are listed
+* Test input:
+  * Type 141+ characters → input stops at 140
+  * Button disables when empty
+* Click "Send" → no crash (no action yet)
 
 ### Container Crash Test
 
@@ -186,4 +215,4 @@ Verify image cache:
 
 ## ScreenShoot
 
-<img src="../IMG/exercise_1_12.png" alt="Screenshoot exercise 1.12" width="600">
+<img src="../IMG/exercise_1_13.png" alt="Screenshoot exercise 1.12" width="600">
