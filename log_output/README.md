@@ -1,3 +1,4 @@
+<!-- markdownlint-disable no-inline-html -->
 # Kubernetes Exercise 2.1: Connecting Pods via HTTP
 
 This exercise replaces file-based communication between the `log-output` and `ping-pong` applications with **HTTP-based communication**. The `log-writer` now fetches the ping counter from the `ping-pong` service via HTTP instead of reading it from a shared volume.
@@ -41,7 +42,7 @@ This exercise replaces file-based communication between the `log-output` and `pi
   │   │   └── package.json
   ├── manifests                           # Kubernetes configs
   │   ├── log-output                      # Contains multi-container Pod resources
-  │   │   ├── deployment.yaml             # Pod with log-writer + log-reader + shared volumes
+  │   │   ├── deployment.yaml             # Pod with log-writer + log-reader + shared volumes (empty dir)
   │   │   └── service.yaml                # Expose only the log-reader
   │   ├── ping-pong                       # ping-pong App-specific resources + shared volume
   │   │   ├── deployment.yaml
@@ -213,18 +214,62 @@ Apply all configurations:
 
 ## Verification and Monitoring
 
-  ```bash
-  # Check storage
-  kubectl get pv,pvc
+1. Check storage and pods
 
-  # Check pods
-  kubectl get pods
+    ```bash
+    # Check storage
+    kubectl get pv,pvc
 
-  # Test endpoints
-  curl http://localhost:8081/pingpong
-  curl http://localhost:8081/logs
-  curl http://localhost:8081/status
-```
+    # Check pods
+    kubectl get pods
+    ```
+
+2. Test externals endpoints
+
+    ```bash
+    # Test endpoints
+    curl http://localhost:8081/pingpong
+    curl http://localhost:8081/logs
+    curl http://localhost:8081/status
+    ```
+
+### Testing Internal vs External Access
+
+This test verifies that:
+
+* `/pings` is only accessible **inside** the cluster (internal communication)
+* `/pings` is **not exposed** externally via Ingress
+* `/pingpong` remains publicly accessible
+
+1. Test: `/pings` should NOT be accessible externally
+
+    ```bash
+    # This should FAIL (404 or 405)
+    curl -v http://localhost:8081/pings
+
+    # Expected output: HTTP 404 Not Found or 405 Method Not Allowed
+    # If it returns 200, your Ingress is incorrectly exposing /pings
+    ```
+
+    Success if: returns `404` or `405`
+
+2. Test: /pings IS accessible from inside the cluster
+
+    Run a temporary debug pod and query the ping-pong service directly:
+
+    ```bash
+    # Start a one-off debug pod
+    kubectl run debug --rm -it --image=curlimages/curl -- sh
+
+    # Inside the pod, run
+    curl && curl http://pingpong-svc:2345/pings
+    ```
+
+    Expected output: {"pings": 5} (or whatever the current counter is)
+
+    Success if: returns the JSON counter
+
+    **Note**: The service pingpong-svc is only resolvable inside the cluster via Kubernetes DNS.
 
 ### Testing persistence
 
@@ -284,3 +329,11 @@ Apply all configurations:
   Restored counter value: 21
   ✅ Persistence test PASSED - Counter maintained across pod restarts
   ```
+
+## Screenshoots
+
+<img src="../IMG/exercise_2_1_a.png" alt="Screenshoot exercise 2.1, endpoint /pingpong" width="600">
+
+<img src="../IMG/exercise_2_1_b.png" alt="Screenshoot exercise 2.1, endpoint /logs" width="600">
+
+<img src="../IMG/exercise_2_1_c.png" alt="Screenshoot exercise 2.1, endpoint /status" width="600">

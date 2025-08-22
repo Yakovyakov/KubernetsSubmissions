@@ -1,3 +1,4 @@
+<!-- markdownlint-disable no-inline-html -->
 # Kubernetes Exercise 1.13
 
 Todo App Functionality
