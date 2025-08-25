@@ -14,7 +14,7 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## Description
 
-React frontend application for Todo management with image display
+React frontend application for Todo management with dynamic image display from a backend service.
 
 ## Frontend Implementation
 
@@ -23,8 +23,8 @@ React frontend application for Todo management with image display
 | Image | Displays an image by calling /api/image-service/random-image |
 | Input field | Text input for new todo |
 | Character limit | Max 140 characters enforced via `maxLength` and UI feedback |
-| Send button |  Disabled when input is empty or too long |
-| Todo list | Displays hardcoded todos (array in component state) |
+| Send button |  Disabled when input is empty or exceeds limit. On click, sends a `POST` request to `/api/todo-service/todos` to create a new todo |
+| Todo list | Displays todos fetched from backend via `/api/todo-service/todos` (no longer hardcoded)|
 
 ## Local Development
 
@@ -38,7 +38,7 @@ npm run dev
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/todo-frontend:1.1 .
+  docker build -t <your-dockerhub-username>/todo-frontend:2.0 .
   ```
 
 ## Pushing to Docker Hub
@@ -52,7 +52,7 @@ npm run dev
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/todo-frontend:1.1
+  docker push <your-dockerhub-username>/todo-frontend:2.0
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/todo-frontend:1.1](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=1.1)
+Image was pushed to Docker Hub repo: [yakovyakov/todo-frontend:2.0](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=2.0)

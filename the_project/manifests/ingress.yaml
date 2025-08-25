@@ -18,7 +18,7 @@ spec:
     - http:
         paths:
 
-          # 1. API
+          # 1. API(image-service)
           - path: /api/image-service/(.*)
             pathType: ImplementationSpecific
             backend:
@@ -27,11 +27,20 @@ spec:
                 port:
                   number: 2345
 
-          # 2. SPA
+          # 2. API(todo-service)
+          - path: /api/todo-service/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: todo-backend-svc
+                port:
+                  number: 2345
+
+          # 3. SPA
           - path: /(.*)
             pathType: ImplementationSpecific
             backend:
               service:
-                name: frontend-svc
+                name: todo-frontend-svc
                 port:
                   number: 2345

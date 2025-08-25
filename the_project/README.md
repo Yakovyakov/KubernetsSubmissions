@@ -1,27 +1,26 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 1.13
+# Kubernetes Exercise 2.2
 
-Todo App Functionality
-
-Add basic todo input and display functionality to the frontend.
+New service, let us call it todo-backend, should have a GET /todos endpoint for fetching the list of todos and a POST /todos endpoint for creating a new todo. The todos are stored in memory (no database yet).
 
 ## Goal
 
 * Add an input field for new todos
 * Prevent input longer than 140 characters
-* Add a "Send" button (no backend integration yet)
-* Display a list of hardcoded todos
+* Add a "Send" button that **sends data to the backend**
+* Display a list of todos fetched from `todo-backend`
 * Keep the hourly image from the previous exercise
+* Deploy todo-backend as a new service in Kubernetes
 
 ## Frontend Implementation
 
 | Features | Description |
 |----------|-------------|
-| Image | Displays an image by calling /api/image-service/random-image |
-| Input field | Text input for new todo |
+| Image | Displays an image by calling `/api/image-service/random-image` |
+| Input field | Text input for new todo with real-time validation |
 | Character limit | Max 140 characters enforced via `maxLength` and UI feedback |
-| Send button |  Disabled when input is empty or too long |
-| Todo list | Displays hardcoded todos (array in component state) |
+| Send button |  Disabled when input is empty or too long. On click, sends a `POST` request to `/api/todo-service/todos` |
+| Todo list | Displays todos fetched from `todo-backend` via `GET /api/todo-service/todos` (no longer hardcoded) |
 
 ### Validation Rules
 
@@ -30,6 +29,7 @@ Add basic todo input and display functionality to the frontend.
 | Max 140 characters | `maxLength="140"` on `<\input>` |
 | Send button disabled |  When `input.length === 0` or `input.length > 140` |
 | Real-time counter | Display: `(120/140)` below input|
+|Form submission | Prevents default, sends POST to API, clears input on success |
 
 ## The project structure
 
@@ -43,15 +43,24 @@ Add basic todo input and display functionality to the frontend.
   │   │   ├── image-service/
   │   │   │   ├── deployment.yaml
   │   │   │   └── service.yaml
-  │   │   └── frontend/
+  │   │   └── todo-frontend/
+  │   │   │   ├── deployment.yaml
+  │   │   │   └── service.yaml
+  │   │   └── todo-backend/
   │   │       ├── deployment.yaml
   │   │       └── service.yaml
   │   └── ingress.yaml
   ├── services/
-  │   ├── image-service/
-  │   │   ├── src/
-  │   │   │   └── server.js
-  │   │   └── Dockerfile
+  │   ├── image-service
+  │   │   ├── Dockerfile
+  │   │   ├── index.js
+  │   │   ├── package.json
+  │   │   └── README.md
+  │   ├── todo-backend
+  │   │   ├── Dockerfile
+  │   │   ├── index.js
+  │   │   ├── package.json
+  │   │   └── README.md
   |   └── todo-frontend
   │       └── src/
   │           ├── App.jsx
@@ -65,11 +74,14 @@ Add basic todo input and display functionality to the frontend.
 
 * A static SPA built with React.
 * Served via Nginx in a Docker container.
-* Displays the cached image by calling /api/image-service/random-image.
+* Displays the cached image by calling `/api/image-service/random-image`.
+* Uses SPA routing (fallback to index.html for all routes).
+* Fetches and displays todos from todo-backend via /api/todo-service/todos.
+* Sends new todos via POST `/api/todo-service/todos`.
 * Uses SPA routing (fallback to index.html for all routes).
 
 Image was pushed to Docker Hub repo: [yakovyakov/todo-frontend:
-1.1](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=1.1)
+2.0](https://hub.docker.com/r/yakovyakov/todo-frontend/tags?name=2.0)
 
 Application: [services/todo-frontend](./services/todo-frontend/)
 
@@ -89,6 +101,20 @@ Image was pushed to Docker Hub repo: [yakovyakov/image-service
 
 Application: [services/image-service](./services/image-service/)
 
+### Todo-Backend (Node.js + Express)
+
+New service responsible for managing todos:
+
+* Stores todos in memory (array) — no database yet.
+* Exposes:
+  * `GET /todos` → returns list of todos
+  * `POST /todos` → adds a new todo with `{ id, text, done }`
+* Configurable port via environment variable (PORT)
+
+Image was pushed to Docker Hub repo: [yakovyakov/todo-backend:1.0](https://hub.docker.com/r/yakovyakov/todo-backend/tags?name=1.0)
+
+Application: [services/todo-backend](./services/todo-backend/)
+
 ## Kubernets Resources
 
 | Resources | Purpose |
@@ -99,7 +125,9 @@ Application: [services/image-service](./services/image-service/)
 | [Service (image-service-svc)](./manifests/apps/image-service/service.yaml) | Exposes the image-service on port 2345 internally. |
 | [Deployment (frontend)](./manifests/apps/todo-frontentd/deployment.yaml) | Runs the React app in an Nginx container. |
 | [Service (frontend-svc)](./manifests/apps/todo-frontentd/service.yaml) | Exposes the frontend on port 2345. |
-| [Ingress](./manifests/ingress.yaml) | Routes external traffic: <br> - /api/image-service/* →  image-service-svc <br> - /  → frontend-svc |
+| [Deployment (todo-backend)](./manifests/apps/todo-backend/deployment.yaml) | Runs the todo-backend container and sets environment variables. |
+| [Service (todo-backend-svc)](./manifests/apps/image-service/service.yaml) | Exposes the todo-backend on port 2345 internally. |
+| [Ingress](./manifests/ingress.yaml) | Routes external traffic: <br> - `/api/image-service/*` →  `image-service-svc` <br> - `/`  → `frontend-svc` <br> - `/api/todo-backend/*` →  `todo-backend-svc`|
 
 ## Diagram
 
@@ -110,13 +138,18 @@ Application: [services/image-service](./services/image-service/)
               I[Ingress Controller]
           end
          
-          subgraph Frontend Deployment
-              F[Frontend Pod]
-          end
-        
           subgraph Image Service Deployment 
               IS[ Image Service Pod]
           end
+
+          subgraph Frontend Deployment
+              F[Frontend Pod]
+          end
+
+          subgraph Todo Backend Deployment
+              TB[Todo-backened Pod]
+          end
+
         
           subgraph Volumes
               PV[(Persistent Volume<br>Image Cache)]
@@ -125,15 +158,16 @@ Application: [services/image-service](./services/image-service/)
     subgraph External Services
       EXT[External Image API<br>http:\/\/picsum.photos/1200]
     end
-
     
+
+      User -->|GET /api/todo-service/todos| I
       User[Usuario] -->|GET /| I
       User -->|GET /api/image-service/random-image| I
       
     
+      I -->|/todos| TB
       I -->|/</br>HTML, css, js| F
       I -->|/random-image| IS
-      
     
       IS -->|Read/Write| PV
       IS -->|Return Image| EXT
@@ -159,10 +193,11 @@ Application: [services/image-service](./services/image-service/)
 Apply all configurations:
 
   ```bash
-  kubectl apply -f manifests/storage      # storage config
-  kubectl apply -f manifests/apps/image-service   # image-service configs
-  kubectl apply -f manifests/apps/todo-frontend   # frontend configs 
-  kubectl apply -f manifests/ingress.yaml # ingress
+  kubectl apply -f manifests/storage                   # PV & PVC
+  kubectl apply -f manifests/apps/image-service        # Image service
+  kubectl apply -f manifests/apps/todo-backend         # Todo backend
+  kubectl apply -f manifests/apps/todo-frontend        # Frontend
+  kubectl apply -f manifests/ingress.yaml              # Ingress
   ```
 
 ## Testing & Behavior
@@ -170,33 +205,35 @@ Apply all configurations:
 Normal Flow
 
 * Visit <http://localhost:8081>
-* See a random image
-* Refresh → same image for 10 minutes
-* After 10 minutes + one grace request → new image
-* Verify:
-  * Image is displayed
-  * Input field and "Send" button are visible
-  * Hardcoded todos are listed
-* Test input:
-  * Type 141+ characters → input stops at 140
-  * Button disables when empty
-* Click "Send" → no crash (no action yet)
+* See a random image (cached for 10 minutes)
+* See list of todos
+* Type a todo (≤140 chars) and click "Send"
+* New todo appears in the list
+* Refresh page → todo still visible (stored in backend memory)
+
+### Test Endpoint Manually
+
+  ```bash
+  # Get todos
+  curl http://localhost:8081/api/todo-service/todos
+
+  # Create a new todo
+  curl -X POST http://localhost:8081/api/todo-service/todos \
+    -H "Content-Type: application/json" \
+    -d '{"text": "Learn Kubernetes"}'
+  ```
 
 ### Container Crash Test
 
   ```bash
-  kubectl delete pod -l app=image-service
+  # Restart todo-backend
+  kubectl delete pod -l app=todo-backend
+
+  # Todos are lost (in-memory storage), but service recovers
+  ### Manual Refresh (for testing)
   ```
 
-After restart pod App continues serving the same image thanks to the persistent volume.
-
-### Manual Refresh (for testing)
-
-Force a new image:
-
-  ```bash
-  kubectl exec <image-service-pod> -- rm /usr/src/app/image-cache/current_image.jpg
-  ```
+  **Note:** Todos are stored in memory, so they are lost on restart
 
 ## Monitoring
 
@@ -204,7 +241,8 @@ Check logs:
 
 ```bash
 kubectl logs -f deployment/image-service-dep
-kubectl logs -f deployment/frontend-dep
+kubectl logs -f deployment/todo-frontend-dep
+kubectl logs -f deployment/todo-backend-dep
 ```
 
 Verify image cache:
@@ -216,4 +254,6 @@ Verify image cache:
 
 ## ScreenShoot
 
-<img src="../IMG/exercise_1_13.png" alt="Screenshoot exercise 1.12" width="600">
+<img src="../IMG/exercise_2_2_a.png" alt="Screenshoot exercise 2.2" width="600">
+<img src="../IMG/exercise_2_2_b.png" alt="Screenshoot exercise 2.2" width="600">
+<img src="../IMG/exercise_2_2_c.png" alt="Screenshoot exercise 2.c" width="600">

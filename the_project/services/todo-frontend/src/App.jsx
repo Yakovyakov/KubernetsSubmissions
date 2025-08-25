@@ -9,13 +9,25 @@ function App() {
   const [imageUrl, setImageUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [input, setInput] = useState('')
+  const [todos, setTodos] = useState([]);
 
-  const todos = [
-    {id: 1, text: 'Learn JavaScript'},
-    {id: 2, text: 'Learn React'},
-    {id: 3, text: 'Learn Kubernetes'},
-    {id: 4, text: 'Build project'},
-  ]
+
+  const fetchTodos = async () => {
+    try {
+      const res = await fetch('/api/todo-service/todos')
+      if (!res.ok) { 
+        throw new Error('Failed to fetch todos')
+      }
+      const data = await res.json()
+      setTodos(data)
+    } catch (error) {
+      console.error('Error fetching todos:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchTodos()
+  }, [])
 
   useEffect(() => {
     const fetchImage = async () => {
@@ -37,14 +49,34 @@ function App() {
     return () => clearInterval(interval)
   }, [])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (input.trim() && input.length <= 140) {
-      console.log('Todo agregado:', input)
-      // En el futuro: enviar al backend
-      setInput('')
+    if (!input.trim() || input.length >  140) {
+      return
+    }
+    console.log('Todo agregado:', input)
+    setInput('')
+    try {
+      const res = await fetch('/api/todo-service/todos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: input }),
+      })
+
+      if (res.ok) {
+        setInput('')
+        fetchTodos() // Refresh list
+      } else {
+        alert('Failed to add todo')
+      }
+    } catch (error) {
+      console.error('Error adding todo:', error)
+      alert('Network error')
     }
   }
+
 
   return (
     <>
