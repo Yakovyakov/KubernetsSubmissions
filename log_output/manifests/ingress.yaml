@@ -2,10 +2,11 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: shared-ingress
+  namespace: exercises
 spec:
   ingressClassName: nginx
   rules:
-  - host: ""
+  - host: "exercises.local"
     http:
       paths:
         - path: /logs       # endpoint 

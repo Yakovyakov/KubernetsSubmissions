@@ -1,19 +1,21 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 2.1: Connecting Pods via HTTP
+# Kubernetes Exercise 2.3: Keep them separated
 
-This exercise replaces file-based communication between the `log-output` and `ping-pong` applications with **HTTP-based communication**. The `log-writer` now fetches the ping counter from the `ping-pong` service via HTTP instead of reading it from a shared volume.
+This exercise focuses on **namespace isolation** in Kubernetes. The goal is to create a dedicated namespace called `exercises` and move the `log-output` and `ping-pong` applications into it, separating them from other workloads.
 
 ## Objective
 
-* Replace shared file storage (`counter.txt`) between `log-output` and `ping-pong` apps with an HTTP call.
-* Remove the PersistentVolumeClaim (PVC) from the `log-writer` container.
-* Keep persistence in `ping-pong` (via PVC) to survive pod restarts.
-* Use a Kubernetes `Service` for internal pod-to-pod communication.
+* Create a namespace named `exercises`
+* Move the `log-output` and `ping-pong` applications into the `exercises` namespace
+* Verify that the applications continue to work correctly after the move
+* Use a Kubernetes `Service` for internal pod-to-pod communication
+* Configure Ingress with a custom host: `exercise.local`
 
 ## Components
 
 | Component | Role |
 |--------|------|
+| `exercises` namespace | Isolated environment for exercise-related workloads |
 | `ping-pong` | Increments and persists a counter. Exposes `/pingpong` and `/pings` endpoints. |
 | `log-writer` | Generates a UUID and logs it every 5 seconds, including the current ping count fetched via HTTP. |
 | `log-reader` | Serves the log file via HTTP (`/logs`, `/status`). |
@@ -130,52 +132,47 @@ Application: [apps/ping-pong](./apps/ping-pong/)
 ## Diagram
 
   ```mermaid
-    graph TD
-      subgraph Kubernetes Cluster
-          subgraph Ingress
-              I[Ingress Controller]
-          end
-          subgraph Deployments
-          subgraph Ping-pong Deployment
-              PP[Ping-pong Pod]
-          end
-          
-        
-          subgraph Log-output Deployment
-              LO[Log-output Pod]
-              subgraph LO[Log-output Pod]
-                  LW[Log-writer Container]
-                  LR[Log-reader Container]
-              end
-          end
-          end
-          subgraph Volumes
-              PV[(Persistent Volume<br>Contador)]
-              LV[emptyDir Volume<br>Logs]
-          end
+  graph TD
+  subgraph Kubernetes Cluster
+    subgraph Ingress
+      I[Ingress Controller]
+    end
+    subgraph "Namespace: exercises"
+      subgraph Ping-pong Deployment
+        PP[Ping-pong Pod]
       end
-    
-      User[Usuario] -->|GET /pingpong| I
-      User -->|GET /logs| I
-      User -->|GET /status| I
-    
-      I -->|GET /pingpong| PP
-      I -->|GET /logs| LR
-      I -->|GET /status| LR
-      LW -.->|GET /pings| PP
-      PP -->|Read/Write| PV
       
-      LW -->|Write| LV
-      LR -->|Read| LV
+      subgraph Log-output Deployment
+        LO[Log-output Pod]
+        subgraph LO[Log-output Pod]
+          LW[Log-writer Container]
+          LR[Log-reader Container]
+        end
+      end
+      
+      subgraph Volumes
+        PV[(Persistent Volume<br>Counter)]
+        LV[emptyDir Volume<br>Logs]
+      end
+    end
+  end
 
-    
-      
-    
-      class PP,LO pod;
-      class LW,LR,PP container;
-      class PV,LV storage;
-      class I ingress;
-      class Legend legend;
+  User[User] -->|GET /pingpong| I
+  User -->|GET /logs| I
+  User -->|GET /status| I
+
+  I -->|/pingpong| PP
+  I -->|/logs| LR
+  I -->|/status| LR
+  LW -.->|GET /pings| PP
+  PP -->|Read/Write| PV
+  LW -->|Write| LV
+  LR -->|Read| LV
+
+  class PP,LO pod;
+  class LW,LR container;
+  class PV,LV storage;
+  class I ingress;
   ```
 
 ## Initial setup
@@ -192,45 +189,107 @@ Application: [apps/ping-pong](./apps/ping-pong/)
   ```bash
   kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
   ```
-  
+
+### Create the `exercises` namespace
+
+  ```bash
+  kubectl create namespace exercises || true
+  ```
+
 ### Deployment
 
 Apply all configurations:
 
   ```bash
-  kubectl apply -f manifests/storage      # storage config
-  kubectl apply -f manifests/log-output   # multi-container Pod with a log writer and reader 
-  kubectl apply -f manifests/ping-pong    # ping-pong configs 
-  kubectl apply -f manifests/ingress.yaml # shared ingress
-  ```
+kubectl apply -f manifests/storage/ -n exercises
+kubectl apply -f manifests/ping-pong/ -n exercises
+kubectl apply -f manifests/log-output/ -n exercises
+kubectl apply -f manifests/ingress.yaml -n exercises
+```
+
+> ⚠️ Note:<br>
+> Although the YAML has namespace: exercises, it is still good practice to use -n exercises for consistency.<br>
+> The `PersistentVolume` (PV) is cluster-scoped and does not use namespaces.  
+> The `-n exercises` flag is ignored for `persistentvolume.yaml`, but it is required for `persistentvolumeclaim.yaml`.  
+> This command works because Kubernetes safely ignores the namespace for cluster-scoped resources.
+
+### Configure local DNS
+
+Edit your local hosts file to resolve exercise.local to 127.0.0.1:
+
+* Linux/macOS: /etc/hosts
+* Windows: C:\Windows\System32\drivers\etc\hosts
+
+Add this line:
+
+```text
+127.0.0.1 exercises.local
+```
+
+### Ingress with Host-based Routing
+
+The Ingress is configured to use exercises.local as the host:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shared-ingress
+  namespace: exercises
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: exercises.local
+    http:
+      paths:
+        - path: /logs       # endpoint 
+          pathType: Prefix
+          backend:
+            service:
+              name: logoutput-svc
+              port:
+                number: 2345
+        - path: /status       # endpoint 
+          pathType: Prefix
+          backend:
+            service:
+              name: logoutput-svc
+              port:
+                number: 2345
+        - path: /pingpong
+          pathType: Prefix
+          backend:
+            service:
+              name: pingpong-svc
+              port:
+                number: 2345
+```
 
 ## Access Applications
 
-* PingPong: `curl http://localhost:8081/pingpong`
+After editing /etc/hosts, you can access:
 
-* Logs: `curl http://localhost:8081/logs`
+* PingPong: `curl http://exercises.local:8081/pingpong`
 
-* Status: `curl http://localhost:8081/status`
+* Logs: `curl http://exercices.local:8081/logs`
+
+* Status: `curl http://exercices.local:8081/status`
 
 ## Verification and Monitoring
 
-1. Check storage and pods
+1. Check resources
 
     ```bash
-    # Check storage
-    kubectl get pv,pvc
-
-    # Check pods
-    kubectl get pods
+    kubectl get pods,pv,pvc,services -n exercises
     ```
 
 2. Test externals endpoints
 
     ```bash
     # Test endpoints
-    curl http://localhost:8081/pingpong
-    curl http://localhost:8081/logs
-    curl http://localhost:8081/status
+    curl http://exercises.local:8081/pingpong
+    curl http://exercises.local:8081/logs
+    curl http://exercises.local:8081/status
     ```
 
 ### Testing Internal vs External Access
@@ -245,7 +304,7 @@ This test verifies that:
 
     ```bash
     # This should FAIL (404 or 405)
-    curl -v http://localhost:8081/pings
+    curl -v http://exercises.local:8081/pings
 
     # Expected output: HTTP 404 Not Found or 405 Method Not Allowed
     # If it returns 200, your Ingress is incorrectly exposing /pings
@@ -277,16 +336,16 @@ This test verifies that:
   ## 🧪 Persistence Testing
 
   # 1. Get initial counter value
-  INITIAL_VALUE=$(curl -s http://localhost:8081/pingpong | awk '{print $2}')
+  INITIAL_VALUE=$(curl -s http://exercises.local:8081/pingpong | awk '{print $2}')
   echo "Initial counter value: $INITIAL_VALUE"
 
   # 2. Increment counter 3 times
   for i in {1..3}; do
-    curl -s http://localhost:8081/pingpong
+    curl -s http://exercises.local:8081/pingpong
   done
 
   # 3. Get current value
-  CURRENT_VALUE=$(curl -s http://localhost:8081/pingpong | awk '{print $2}')
+  CURRENT_VALUE=$(curl -s http://exercises.local:8081/pingpong | awk '{print $2}')
   echo "Current counter value: $CURRENT_VALUE"
 
   # 4. Force delete all application pods
@@ -302,7 +361,7 @@ This test verifies that:
   kubectl get pods -l app=logoutput
 
   # 7. Check persisted value
-  RESTORED_VALUE=$(curl -s http://localhost:8081/pingpong | awk '{print $2}')
+  RESTORED_VALUE=$(curl -s http://exercises.local:8081/pingpong | awk '{print $2}')
   echo "Restored counter value: $RESTORED_VALUE"
 
   # 8. Validation
@@ -332,8 +391,8 @@ This test verifies that:
 
 ## Screenshoots
 
-<img src="../IMG/exercise_2_1_a.png" alt="Screenshoot exercise 2.1, endpoint /pingpong" width="600">
+<img src="../IMG/exercise_2_3_a.png" alt="Screenshoot exercise 2.3, endpoint /pingpong" width="600">
 
-<img src="../IMG/exercise_2_1_b.png" alt="Screenshoot exercise 2.1, endpoint /logs" width="600">
+<img src="../IMG/exercise_2_3_b.png" alt="Screenshoot exercise 2.3, endpoint /logs" width="600">
 
-<img src="../IMG/exercise_2_1_c.png" alt="Screenshoot exercise 2.1, endpoint /status" width="600">
+<img src="../IMG/exercise_2_3_c.png" alt="Screenshoot exercise 2.3, endpoint /status" width="600">
