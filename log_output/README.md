@@ -9,7 +9,7 @@ This exercise focuses on **namespace isolation** in Kubernetes. The goal is to c
 * Move the `log-output` and `ping-pong` applications into the `exercises` namespace
 * Verify that the applications continue to work correctly after the move
 * Use a Kubernetes `Service` for internal pod-to-pod communication
-* Configure Ingress with a custom host: `exercise.local`
+* Configure Ingress with a custom host: `exercises.local`
 
 ## Components
 
@@ -215,7 +215,7 @@ kubectl apply -f manifests/ingress.yaml -n exercises
 
 ### Configure local DNS
 
-Edit your local hosts file to resolve exercise.local to 127.0.0.1:
+Edit your local hosts file to resolve exercises.local to 127.0.0.1:
 
 * Linux/macOS: /etc/hosts
 * Windows: C:\Windows\System32\drivers\etc\hosts
