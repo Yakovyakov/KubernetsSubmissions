@@ -25,3 +25,4 @@ Repository containing the exercises submitted for the "DevOps with Kubernetes" c
 ### Chapter 3
 
 - [2.1.](https://github.com/Yakovyakov/KubernetsSubmissions/tree/2.1/log_output)
+- [2.2.](https://github.com/Yakovyakov/KubernetsSubmissions/tree/2.2/the_project)
