@@ -208,9 +208,9 @@ Apply all configurations:
   ```
 
 > ⚠️ Note:<br>
-> Although the YAML has namespace: exercises, it is still good practice to use -n exercises for consistency.<br>
+> Although the YAML has namespace: project, it is still good practice to use -n project for consistency.<br>
 > The `PersistentVolume` (PV) is cluster-scoped and does not use namespaces.  
-> The `-n exercises` flag is ignored for `persistentvolume.yaml`, but it is required for `persistentvolumeclaim.yaml`.  
+> The `-n project` flag is ignored for `persistentvolume.yaml`, but it is required for `persistentvolumeclaim.yaml`.  
 > This command works because Kubernetes safely ignores the namespace for cluster-scoped resources.
 
 ## Configure local DNS
@@ -271,18 +271,19 @@ Normal Flow
 
 ## Monitoring
 
-```bash
-# Follow logs
-kubectl logs -f deployment/image-service-dep -n project
-kubectl logs -f deployment/todo-backend-dep -n project
-kubectl logs -f deployment/todo-frontend-dep -n project
+  ```bash
+  # Follow logs
+  kubectl logs -f deployment/image-service-dep -n project
+  kubectl logs -f deployment/todo-backend-dep -n project
+  kubectl logs -f deployment/todo-frontend-dep -n project
 
-# Verify image cache
-kubectl exec -it $(kubectl get pod -l app=image-service -n project -o jsonpath='{.items[0].metadata.name}') -n project -- ls -l /usr/src/app/image-cache/
-```
+  # Verify image cache
+  kubectl exec -it $(kubectl get pod -l app=image-service -n project -o jsonpath='{.items[0].metadata.name}') -n project -- ls -l /usr/src/app/image-cache/
+  ```
 
 ## ScreenShoot
 
-<img src="../IMG/exercise_2_2_a.png" alt="Screenshoot exercise 2.2" width="600">
-<img src="../IMG/exercise_2_2_b.png" alt="Screenshoot exercise 2.2" width="600">
-<img src="../IMG/exercise_2_2_c.png" alt="Screenshoot exercise 2.c" width="600">
+<img src="../IMG/exercise_2_4_a.png" alt="Screenshoot Resources 2.4" width="600">
+<img src="../IMG/exercise_2_4_b.png" alt="Screenshoot Web Main Windows 2.4" width="600">
+<img src="../IMG/exercise_2_4_c.png" alt="Screenshoot Web insert new todo 2.4" width="600">
+<img src="../IMG/exercise_2_4_d.png" alt="Screenshoot Web view a new todo 2.4" width="600">
