@@ -1,35 +1,32 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 2.2
+# Kubernetes Exercise 2.4: The project, step 9
 
-New service, let us call it todo-backend, should have a GET /todos endpoint for fetching the list of todos and a POST /todos endpoint for creating a new todo. The todos are stored in memory (no database yet).
+This exercise focuses on **namespace isolation for the project**. The goal is to create a dedicated namespace called `project` and move all project-related applications (`todo-frontend`, `todo-backend`, `image-service`) into it, separating the project from other exercises.
 
 ## Goal
 
-* Add an input field for new todos
-* Prevent input longer than 140 characters
-* Add a "Send" button that **sends data to the backend**
-* Display a list of todos fetched from `todo-backend`
-* Keep the hourly image from the previous exercise
-* Deploy todo-backend as a new service in Kubernetes
+* Create a namespace named `project`
+* Move all project-related resources into the `project` namespace
+* Configure Ingress to use `project.local` as the host
+* Verify that the application continues to work correctly
+* Use namespaces to isolate the project environment
 
-## Frontend Implementation
+## Components
 
-| Features | Description |
-|----------|-------------|
-| Image | Displays an image by calling `/api/image-service/random-image` |
-| Input field | Text input for new todo with real-time validation |
-| Character limit | Max 140 characters enforced via `maxLength` and UI feedback |
-| Send button |  Disabled when input is empty or too long. On click, sends a `POST` request to `/api/todo-service/todos` |
-| Todo list | Displays todos fetched from `todo-backend` via `GET /api/todo-service/todos` (no longer hardcoded) |
+| Component | Role |
+|--------|------|
+| `project` namespace | Isolated environment for the project |
+| `todo-frontend` | React SPA served via Nginx |
+| `todo-backend` | REST API: `GET /todos`, `POST /todos` (in-memory storage) |
+| `image-service` | Fetches and caches a random image from `picsum.photos` |
+| `image-cache-pvc` | PersistentVolumeClaim for storing the cached image |
+| `project.local` | Custom domain for accessing the project |
 
-### Validation Rules
-
-| RULE | HOW ENFORCED |
-|------|--------------|
-| Max 140 characters | `maxLength="140"` on `<\input>` |
-| Send button disabled |  When `input.length === 0` or `input.length > 140` |
-| Real-time counter | Display: `(120/140)` below input|
-|Form submission | Prevents default, sends POST to API, clears input on success |
+> Communication:
+>
+> * Frontend → `GET /api/todo-service/todos`
+> * Frontend → `GET /api/image-service/random-image`
+> * `todo-backend` stores todos in memory
 
 ## The project structure
 
@@ -132,45 +129,49 @@ Application: [services/todo-backend](./services/todo-backend/)
 ## Diagram
 
   ```mermaid
-    graph TD
-      subgraph Kubernetes Cluster
-          subgraph Ingress
-              I[Ingress Controller]
-          end
-         
-          subgraph Image Service Deployment 
-              IS[ Image Service Pod]
-          end
-
-          subgraph Frontend Deployment
-              F[Frontend Pod]
-          end
-
-          subgraph Todo Backend Deployment
-              TB[Todo-backened Pod]
-          end
-
-        
-          subgraph Volumes
-              PV[(Persistent Volume<br>Image Cache)]
-          end
-      end
-    subgraph External Services
-      EXT[External Image API<br>http:\/\/picsum.photos/1200]
+graph TD
+  subgraph Kubernetes Cluster
+    subgraph Ingress
+      I[Ingress Controller]
     end
-    
+    subgraph "Namespace: project"
+      subgraph Image Service Deployment
+        IS[Image Service Pod]
+      end
 
-      User -->|GET /api/todo-service/todos| I
-      User[Usuario] -->|GET /| I
-      User -->|GET /api/image-service/random-image| I
-      
-    
-      I -->|/todos| TB
-      I -->|/</br>HTML, css, js| F
-      I -->|/random-image| IS
-    
-      IS -->|Read/Write| PV
-      IS -->|Return Image| EXT
+      subgraph Frontend Deployment
+        F[Frontend Pod]
+      end
+
+      subgraph Todo Backend Deployment
+        TB[Todo-backend Pod]
+      end
+
+      subgraph Volumes
+        PV[(Persistent Volume<br>Image Cache)]
+      end
+    end
+  end
+
+  subgraph External Services
+    EXT[External Image API<br>https://picsum.photos/1200]
+  end
+
+  User[User] -->|GET /| I
+  User -->|GET /api/image-service/random-image| I
+  User -->|GET /api/todo-service/todos| I
+  User -->|POST /api/todo-service/todos| I
+
+  I -->|/| F
+  I -->|/random-image| IS
+  I -->|/todos| TB
+
+  IS -->|Read/Write| PV
+  IS -->|Fetch| EXT
+
+  class IS,F,TB pod;
+  class PV storage;
+  class I ingress;
   ```
 
 ## Initial setup
@@ -187,38 +188,71 @@ Application: [services/todo-backend](./services/todo-backend/)
     ```bash
     kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
     ```
-  
+
+### Create the `project` namespace
+
+  ```bash
+  kubectl create namespace project || true
+  ```
+
 ## Deployment
 
 Apply all configurations:
 
   ```bash
-  kubectl apply -f manifests/storage                   # PV & PVC
-  kubectl apply -f manifests/apps/image-service        # Image service
-  kubectl apply -f manifests/apps/todo-backend         # Todo backend
-  kubectl apply -f manifests/apps/todo-frontend        # Frontend
-  kubectl apply -f manifests/ingress.yaml              # Ingress
+  kubectl apply -f manifests/storage -n project                  # PV & PVC
+  kubectl apply -f manifests/apps/image-service -n project       # Image service
+  kubectl apply -f manifests/apps/todo-backend -n project        # Todo backend
+  kubectl apply -f manifests/apps/todo-frontend  -n project      # Frontend
+  kubectl apply -f manifests/ingress.yaml -n project             # Ingress
   ```
+
+> ⚠️ Note:<br>
+> Although the YAML has namespace: exercises, it is still good practice to use -n exercises for consistency.<br>
+> The `PersistentVolume` (PV) is cluster-scoped and does not use namespaces.  
+> The `-n exercises` flag is ignored for `persistentvolume.yaml`, but it is required for `persistentvolumeclaim.yaml`.  
+> This command works because Kubernetes safely ignores the namespace for cluster-scoped resources.
+
+## Configure local DNS
+
+Edit your local hosts file to resolve project.local to 127.0.0.1:
+
+* Linux/macOS: /etc/hosts
+* Windows: C:\Windows\System32\drivers\etc\hosts
+
+Add this line:
+
+```text
+127.0.0.1 project.local
+```
+
+## Access the Application
+
+After setting up DNS:
+
+* Frontend: `http://project.local`
+* API Todos: `http://project.local/api/todo-service/todos`
+* API Image: `http://project.local/api/image-service/random-image`
 
 ## Testing & Behavior
 
 Normal Flow
 
-* Visit <http://localhost:8081>
-* See a random image (cached for 10 minutes)
-* See list of todos
-* Type a todo (≤140 chars) and click "Send"
-* New todo appears in the list
-* Refresh page → todo still visible (stored in backend memory)
+1. Open `http://project.local` in your browser
+2. See a random image (cached for 10 minutes)
+3. See list of todos
+4. Type a new todo (≤140 chars), click "Send"
+5. New todo appears in the list
+6. Refresh → todos still visible (stored in backend memory)
 
 ### Test Endpoint Manually
 
   ```bash
   # Get todos
-  curl http://localhost:8081/api/todo-service/todos
+  curl http://project.local:8081/api/todo-service/todos
 
   # Create a new todo
-  curl -X POST http://localhost:8081/api/todo-service/todos \
+  curl -X POST http://project.local:8081/api/todo-service/todos \
     -H "Content-Type: application/json" \
     -d '{"text": "Learn Kubernetes"}'
   ```
@@ -227,7 +261,7 @@ Normal Flow
 
   ```bash
   # Restart todo-backend
-  kubectl delete pod -l app=todo-backend
+  kubectl delete pod -l app=todo-backend -n project
 
   # Todos are lost (in-memory storage), but service recovers
   ### Manual Refresh (for testing)
@@ -237,20 +271,15 @@ Normal Flow
 
 ## Monitoring
 
-Check logs:
-
 ```bash
-kubectl logs -f deployment/image-service-dep
-kubectl logs -f deployment/todo-frontend-dep
-kubectl logs -f deployment/todo-backend-dep
+# Follow logs
+kubectl logs -f deployment/image-service-dep -n project
+kubectl logs -f deployment/todo-backend-dep -n project
+kubectl logs -f deployment/todo-frontend-dep -n project
+
+# Verify image cache
+kubectl exec -it $(kubectl get pod -l app=image-service -n project -o jsonpath='{.items[0].metadata.name}') -n project -- ls -l /usr/src/app/image-cache/
 ```
-
-Verify image cache:
-
-  ```bash
-  kubectl exec <image-service-pod> -- ls -l /usr/src/app/image-cache/
-  # Should show: current_image.jpg
-  ```
 
 ## ScreenShoot
 

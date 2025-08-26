@@ -3,6 +3,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: project-ingress
+  namespace: project
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
@@ -15,32 +16,33 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - http:
-        paths:
+  - host: project.local
+    http:
+      paths:
 
-          # 1. API(image-service)
-          - path: /api/image-service/(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: image-service-svc
-                port:
-                  number: 2345
+        # 1. API(image-service)
+        - path: /api/image-service/(.*)
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: image-service-svc
+              port:
+                number: 2345
 
-          # 2. API(todo-service)
-          - path: /api/todo-service/(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: todo-backend-svc
-                port:
-                  number: 2345
+        # 2. API(todo-service)
+        - path: /api/todo-service/(.*)
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: todo-backend-svc
+              port:
+                number: 2345
 
-          # 3. SPA
-          - path: /(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: todo-frontend-svc
-                port:
-                  number: 2345
+        # 3. SPA
+        - path: /(.*)
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: todo-frontend-svc
+              port:
+                number: 2345
