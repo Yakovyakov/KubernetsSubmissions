@@ -15,24 +15,35 @@ spec:
     spec:
       containers:
         - name: log-writer
-          image: yakovyakov/log-writer:3.0
+          image: yakovyakov/log-writer:4.0
           volumeMounts:
             - name: shared-logs
               mountPath: /usr/src/app/shared-logs # log-writer write here
-          env:
-            - name: PING_SERVER_URL
-              value: "http://pingpong-svc:2345"
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: log-writer-config
+            - configMapRef:
+                name: log-config
         - name: log-reader
-          image: yakovyakov/log-reader:2.0
-          env:
-            - name: PORT
-              value: "3001"
+          image: yakovyakov/log-reader:3.0
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: log-reader-config
           volumeMounts:
             - name: shared-logs
               mountPath: /usr/src/app/shared-logs # log-reader read here
       volumes:
         - name: shared-logs
           emptyDir: {}
-
+        - name: config-volume
+          configMap:
+            name: log-config
+            items:
+              - key: information.txt
+                path: information.txt
 
 

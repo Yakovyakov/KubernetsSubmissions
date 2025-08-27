@@ -12,15 +12,22 @@ const LOG_FILE = process.env.LOG_FILE_PATH || path.join(__dirname, 'shared-logs'
 // status
 app.get('/status', (req, res) => {
 
-  fs.readFile(LOG_FILE, 'utf-8', (err, data) => {
-    if (err) {
-      res.status(500).send('Error reading log file');
-    } else {
-      const lines = data.split('\n').filter(line => line.trim('') !== '');
-      const lastLine = lines.length > 0 ? lines[lines.length - 1] : 'Log file is empty';
-      res.type('text/plain').send(lastLine);
-    }
-  });
+  try{
+    const content = fs.readFileSync(LOG_FILE, 'utf8').trim();
+    const lines = content.split('\n').filter(line => line.trim() !== '');
+    if (lines.length === 0) return res.type('text/plain').send('No log entries yet');
+
+    const lastEntry = JSON.parse(lines[lines.length - 1]);
+
+    res.type('text/plain').send(
+      `file content: ${lastEntry.fileContent}\n` +
+      `env variable: MESSAGE=${lastEntry.message}\n` +
+      `${lastEntry.timestamp}: ${lastEntry.uuid}\n` +
+      `Ping / Pongs: ${lastEntry.pings}\n`
+    );
+  } catch (err) {
+    res.status(500).send('Error reading log');
+  }
 });
 
 // logs

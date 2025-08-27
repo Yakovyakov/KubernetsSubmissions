@@ -1,26 +1,27 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 2.3: Keep them separated
+# Kubernetes Exercise 2.5: Documentation and ConfigMaps
 
-This exercise focuses on **namespace isolation** in Kubernetes. The goal is to create a dedicated namespace called `exercises` and move the `log-output` and `ping-pong` applications into it, separating them from other workloads.
+This exercise demonstrates how to use **ConfigMaps** in Kubernetes to inject non-confidential configuration data into the `log-writer` container, including a file and an environment variable.
 
 ## Objective
 
-* Create a namespace named `exercises`
-* Move the `log-output` and `ping-pong` applications into the `exercises` namespace
-* Verify that the applications continue to work correctly after the move
-* Use a Kubernetes `Service` for internal pod-to-pod communication
-* Configure Ingress with a custom host: `exercises.local`
-
-## Components
+* Create a ConfigMap named `log-config` with:
+  * A file: `information.txt` → content: `this text is from file`
+  * An environment variable: `MESSAGE=hello world`
+* Mount the file as a volume in the `log-writer` container
+* Inject the environment variable into the container
+* Verify that both values appear in the log output via `/status`## Components
 
 | Component | Role |
 |--------|------|
 | `exercises` namespace | Isolated environment for exercise-related workloads |
 | `ping-pong` | Increments and persists a counter. Exposes `/pingpong` and `/pings` endpoints. |
-| `log-writer` | Generates a UUID and logs it every 5 seconds, including the current ping count fetched via HTTP. |
-| `log-reader` | Serves the log file via HTTP (`/logs`, `/status`). |
-| `pingpong-svc` | Kubernetes Service exposing `ping-pong` internally. |
-| `counter-pvc` | PVC used **only by `ping-pong`** to persist the counter across restarts. |
+| `log-writer` | Generates a UUID and logs it every 5 seconds, including the current ping count fetched via HTTP **and ConfigMap data** |
+| `log-reader` | Serves the log file via HTTP (`/logs`, `/status`) |
+| `pingpong-svc` | Kubernetes Service exposing `ping-pong` internally |
+| `counter-pvc` | PVC used **only by `ping-pong`** to persist the counter across restarts |
+| `log-config` | ConfigMap with `information.txt` and `MESSAGE` |
+| `log-writer-config`, `log-reader-config`, `ping-pong-config` | ConfigMaps for technical configuration (paths, ports, URLs) |
 
 > 🔁 Communication: `log-writer` → `GET http://pingpong-svc:2345/pings`
 
@@ -43,6 +44,11 @@ This exercise focuses on **namespace isolation** in Kubernetes. The goal is to c
   │   │   ├── index.js
   │   │   └── package.json
   ├── manifests                           # Kubernetes configs
+  │   ├── configmaps                      # ConfigMaps for configuration
+  │   │   ├── log-config.yaml             # information.txt + MESSAGE
+  │   │   ├── log-writer-config.yaml      # LOG_FILE_PATH, PING_SERVER_URL
+  │   │   ├── log-reader-config.yaml      # PORT, LOG_FILE_PATH
+  │   │   └── ping-pong-config.yaml       # PORT, COUNTER_FILE_PATH
   │   ├── log-output                      # Contains multi-container Pod resources
   │   │   ├── deployment.yaml             # Pod with log-writer + log-reader + shared volumes (empty dir)
   │   │   └── service.yaml                # Expose only the log-reader
@@ -63,15 +69,19 @@ This exercise focuses on **namespace isolation** in Kubernetes. The goal is to c
 
 A simple Node.js application that:
 
-* Generates a random string(version 4 UUID) on startup, stores it in memory
-
-* Every 5 seconds, the service queries the GET endpoint at <\pingpong-server>/pings to retrieve the counter value, and write the saved random string and the counter along with an ISO-format timestamp to a log file.
-
+* Generates a random string (version 4 UUID) on startup, stores it in memory
+* Every 5 seconds, the service queries the GET endpoint at `<pingpong-server>/pings` to retrieve the counter value
+* Writes a structured log entry in **JSON Lines format** (one JSON object per line) containing:
+  * Timestamp
+  * UUID
+  * Content from the ConfigMap file (`information.txt`)
+  * Environment variable (`MESSAGE`)
+  * Ping counter
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
 * Configurable pingpong-server via environment variable (PING_SERVER_URL), the default is "http\://localhost" (useful for local development)
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-writer:3.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=3.0)
+Image was pushed to Docker Hub repo: [yakovyakov/log-writer:4.0](https://hub.docker.com/r/yakovyakov/log-writer/tags?name=4.0)
 
 Application: [apps/log-writer](./apps/log-writer/)
 
@@ -91,7 +101,7 @@ A simple Node.js web server that:
 
 * Configurable log file via environment variable (LOG_FILE_PATH), the default log file is "shared-logs/output.log"
 
-Image was pushed to Docker Hub repo: [yakovyakov/log-reader:2.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=2.0)
+Image was pushed to Docker Hub repo: [yakovyakov/log-reader:3.0](https://hub.docker.com/r/yakovyakov/log-reader/tags?name=3.0)
 
 Application: [apps/log-reader](./apps/log-reader/)
 
@@ -119,6 +129,10 @@ Application: [apps/ping-pong](./apps/ping-pong/)
 
 | Resource | Purpose |
 |--------|---------|
+| [ConfigMap (log-config)](./manifests/configmaps/log-config.yaml) | Stores `information.txt` and `MESSAGE` for `log-writer` |
+| [ConfigMap (log-writer-config)](./manifests/configmaps/log-writer-config.yaml) | Configuration: `LOG_FILE_PATH`, `PING_SERVER_URL` |
+| [ConfigMap (log-reader-config)](./manifests/configmaps/log-reader-config.yaml) | Configuration: `PORT`, `LOG_FILE_PATH` |
+| [ConfigMap (ping-pong-config)](./manifests/configmaps/ping-pong-config.yaml) | Configuration: `PORT`, `COUNTER_FILE_PATH` |
 | [Deployment (pingpong-dep)](./manifests/ping-pong/deployment.yaml) | Runs the `ping-pong` app with counter persistence (PVC) |
 | [Deployment (logoutput-dep)](./manifests/log-output/deployment.yaml)  | Runs `log-writer` and `log-reader` (no PVC mounted) |
 | [Service (pingpong-svc)](./manifests/ping-pong/service.yaml) | Exposes `ping-pong` on port 2345|
@@ -152,6 +166,7 @@ Application: [apps/ping-pong](./apps/ping-pong/)
       
       subgraph Volumes
         PV[(Persistent Volume<br>Counter)]
+        CM[ConfigMap<br>Information.txt + MESSAGE]
         LV[emptyDir Volume<br>Logs]
       end
     end
@@ -165,6 +180,7 @@ Application: [apps/ping-pong](./apps/ping-pong/)
   I -->|/logs| LR
   I -->|/status| LR
   LW -.->|GET /pings| PP
+  LW -.->|Mounts| CM
   PP -->|Read/Write| PV
   LW -->|Write| LV
   LR -->|Read| LV
@@ -196,7 +212,13 @@ Application: [apps/ping-pong](./apps/ping-pong/)
   kubectl create namespace exercises || true
   ```
 
-### Deployment
+### Apply ConfigMaps
+
+```bash
+kubectl apply -f manifests/configmaps/ -n exercises
+```
+
+### Deploy All
 
 Apply all configurations:
 
@@ -215,54 +237,10 @@ kubectl apply -f manifests/ingress.yaml -n exercises
 
 ### Configure local DNS
 
-Edit your local hosts file to resolve exercises.local to 127.0.0.1:
-
-* Linux/macOS: /etc/hosts
-* Windows: C:\Windows\System32\drivers\etc\hosts
-
-Add this line:
+Add this line to `/etc/hosts` :
 
 ```text
 127.0.0.1 exercises.local
-```
-
-### Ingress with Host-based Routing
-
-The Ingress is configured to use exercises.local as the host:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: shared-ingress
-  namespace: exercises
-spec:
-  ingressClassName: nginx
-  rules:
-  - host: exercises.local
-    http:
-      paths:
-        - path: /logs       # endpoint 
-          pathType: Prefix
-          backend:
-            service:
-              name: logoutput-svc
-              port:
-                number: 2345
-        - path: /status       # endpoint 
-          pathType: Prefix
-          backend:
-            service:
-              name: logoutput-svc
-              port:
-                number: 2345
-        - path: /pingpong
-          pathType: Prefix
-          backend:
-            service:
-              name: pingpong-svc
-              port:
-                number: 2345
 ```
 
 ## Access Applications
@@ -280,119 +258,33 @@ After editing /etc/hosts, you can access:
 1. Check resources
 
     ```bash
-    kubectl get pods,pv,pvc,services -n exercises
+    kubectl get pods,pv,pvc,services,configmaps -n exercises
     ```
 
-2. Test externals endpoints
+2. Check ConfigMap
 
     ```bash
-    # Test endpoints
-    curl http://exercises.local:8081/pingpong
-    curl http://exercises.local:8081/logs
+    kubectl get configmap log-config -n exercises -o yaml
+    kubectl get configmap log-reader-config -n exercises -o yaml
+    kubectl get configmap log-writer-config -n exercises -o yaml
+    kubectl get configmap ping-pong-config -n exercises -o yaml
+    ```
+
+3. Check /status output
+
+    ```bash
     curl http://exercises.local:8081/status
     ```
 
-### Testing Internal vs External Access
+    Should show:
 
-This test verifies that:
-
-* `/pings` is only accessible **inside** the cluster (internal communication)
-* `/pings` is **not exposed** externally via Ingress
-* `/pingpong` remains publicly accessible
-
-1. Test: `/pings` should NOT be accessible externally
-
-    ```bash
-    # This should FAIL (404 or 405)
-    curl -v http://exercises.local:8081/pings
-
-    # Expected output: HTTP 404 Not Found or 405 Method Not Allowed
-    # If it returns 200, your Ingress is incorrectly exposing /pings
+    ```text
+    file content: this text is from file
+    env variable: MESSAGE=hello world
+    2025-08-26T15:48:29.960Z: 10a5d22-47dc-4828-aa28-5b108295a08d
+    Ping/Pongs: 0
     ```
-
-    Success if: returns `404` or `405`
-
-2. Test: /pings IS accessible from inside the cluster
-
-    Run a temporary debug pod and query the ping-pong service directly:
-
-    ```bash
-    # Start a one-off debug pod
-    kubectl run debug --rm -it --image=curlimages/curl -- sh
-
-    # Inside the pod, run
-    curl && curl http://pingpong-svc:2345/pings
-    ```
-
-    Expected output: {"pings": 5} (or whatever the current counter is)
-
-    Success if: returns the JSON counter
-
-    **Note**: The service pingpong-svc is only resolvable inside the cluster via Kubernetes DNS.
-
-### Testing persistence
-
-  ```bash
-  ## 🧪 Persistence Testing
-
-  # 1. Get initial counter value
-  INITIAL_VALUE=$(curl -s http://exercises.local:8081/pingpong | awk '{print $2}')
-  echo "Initial counter value: $INITIAL_VALUE"
-
-  # 2. Increment counter 3 times
-  for i in {1..3}; do
-    curl -s http://exercises.local:8081/pingpong
-  done
-
-  # 3. Get current value
-  CURRENT_VALUE=$(curl -s http://exercises.local:8081/pingpong | awk '{print $2}')
-  echo "Current counter value: $CURRENT_VALUE"
-
-  # 4. Force delete all application pods
-  kubectl delete pods -l app=pingpong
-  kubectl delete pods -l app=logoutput
-
-  # 5. Wait for pods to restart (30-60 seconds)
-  echo "Waiting for pods to restart..."
-  sleep 45
-
-  # 6. Verify new pods are running
-  kubectl get pods -l app=pingpong
-  kubectl get pods -l app=logoutput
-
-  # 7. Check persisted value
-  RESTORED_VALUE=$(curl -s http://exercises.local:8081/pingpong | awk '{print $2}')
-  echo "Restored counter value: $RESTORED_VALUE"
-
-  # 8. Validation
-  if [ "$RESTORED_VALUE" -gt "$INITIAL_VALUE" ]; then
-    echo "✅ Persistence test PASSED - Counter maintained across pod restarts"
-  else
-    echo "❌ Persistence test FAILED - Counter was not persisted"
-    exit 1
-  fi
-  ```
-
-  Expected output:
-
-  ```bash
-  Initial counter value: 16
-  pong 17pong 18pong 19Current counter value: 20
-  pod "pingpong-dep-54457bbdfb-27l2h" deleted
-  pod "logoutput-dep-76748df497-8c8hx" deleted
-  Waiting for pods to restart...
-  NAME                            READY   STATUS    RESTARTS   AGE
-  pingpong-dep-54457bbdfb-vbd5q   1/1     Running   0          48s
-  NAME                             READY   STATUS    RESTARTS   AGE
-  logoutput-dep-76748df497-kn2ss   2/2     Running   0          46s
-  Restored counter value: 21
-  ✅ Persistence test PASSED - Counter maintained across pod restarts
-  ```
 
 ## Screenshoots
 
-<img src="../IMG/exercise_2_3_a.png" alt="Screenshoot exercise 2.3, endpoint /pingpong" width="600">
-
-<img src="../IMG/exercise_2_3_b.png" alt="Screenshoot exercise 2.3, endpoint /logs" width="600">
-
-<img src="../IMG/exercise_2_3_c.png" alt="Screenshoot exercise 2.3, endpoint /status" width="600">
+<img src="../IMG/exercise_2_5.png" alt="Screenshoot exercise 2.5" width="600">

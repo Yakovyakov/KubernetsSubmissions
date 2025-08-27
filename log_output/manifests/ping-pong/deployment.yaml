@@ -19,11 +19,9 @@ spec:
           volumeMounts:
             - name: counter-storage
               mountPath: /usr/src/app/shared-data
-          env:
-            - name: PORT
-              value: "3002"
-            - name: COUNTER_FILE_PATH
-              value: "/usr/src/app/shared-data/counter.txt"
+          envFrom:
+            - configMapRef:
+                name: ping-pong-config
       volumes:
         - name: counter-storage
           persistentVolumeClaim:
