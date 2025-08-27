@@ -10,7 +10,9 @@ This exercise demonstrates how to use **ConfigMaps** in Kubernetes to inject non
   * An environment variable: `MESSAGE=hello world`
 * Mount the file as a volume in the `log-writer` container
 * Inject the environment variable into the container
-* Verify that both values appear in the log output via `/status`## Components
+* Verify that both values appear in the log output via `/status`
+
+## Components
 
 | Component | Role |
 |--------|------|
