@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-service-config
+  namespace: project
+data:
+  PORT: "3002"
+  IMAGE_DIR: "/usr/src/app/image-cache"
+  API_IMAGE_URL: "https://picsum.photos/1200"
+  CACHE_TIME: "600000"

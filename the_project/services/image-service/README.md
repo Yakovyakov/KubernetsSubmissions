@@ -18,6 +18,7 @@ npm start
 | PORT       | 3001        | Service port     |
 | CACHE_DIR  | (Current path) | Cache storage    |
 | CACHE_TIME | 600000      | Cache TTL (ms)   |
+| API_IMAGE_URL | `https://picsum.photos/1200` | URL for downloading random images |
 
 ## Endpoints
 
@@ -30,7 +31,7 @@ npm start
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/image-service:1.0 .
+  docker build -t <your-dockerhub-username>/image-service:2.0 .
   ```
 
 ## Pushing to Docker Hub
@@ -44,7 +45,7 @@ npm start
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/image-service:1.0
+  docker push <your-dockerhub-username>/image-service:2.0
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/image-service:1.0](https://hub.docker.com/r/yakovyakov/image-service/tags?name=1.0)
+Image was pushed to Docker Hub repo: [yakovyakov/image-service:2.0](https://hub.docker.com/r/yakovyakov/image-service/tags?name=2.0)

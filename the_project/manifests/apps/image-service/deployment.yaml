@@ -15,15 +15,13 @@ spec:
     spec:
       containers:
         - name: image-service
-          image: yakovyakov/image-service:1.0
+          image: yakovyakov/image-service:2.0
           volumeMounts:
             - name: image-storage
               mountPath: /usr/src/app/image-cache
-          env:
-            - name: PORT
-              value: "3002"
-            - name: IMAGE_DIR
-              value: "/usr/src/app/image-cache"
+          envFrom:
+            - configMapRef:
+                name: image-service-config
       volumes:
         - name: image-storage
           persistentVolumeClaim:

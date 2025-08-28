@@ -9,6 +9,7 @@ const lockfile = require('lockfile');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CACHE_TIME = process.env.CACHE_TIME || 10 * 60 * 1000; // 10 min
+const API_IMAGE_URL = process.env.API_IMAGE_URL || 'https://picsum.photos/1200'
 const IMAGE_DIR = process.env.IMAGE_DIR || __dirname;
 const IMAGE_PATH = path.join(IMAGE_DIR, 'current_image.jpg');
 const TEMP_IMAGE_PATH = path.join(IMAGE_DIR, 'temp_image.jpg');
@@ -43,7 +44,7 @@ async function getImageWithLock() {
       }
     }
     
-    const response = await axios.get('https://picsum.photos/1200', {
+    const response = await axios.get(API_IMAGE_URL, {
       responseType: 'arraybuffer',
       timeout: 10000
     });

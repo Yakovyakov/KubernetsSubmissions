@@ -204,9 +204,9 @@ Application: [apps/ping-pong](./apps/ping-pong/)
 
 2. Install Nginx Ingress Controller:
 
-  ```bash
-  kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
-  ```
+    ```bash
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+    ```
 
 ### Create the `exercises` namespace
 
