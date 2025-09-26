@@ -5,4 +5,7 @@ metadata:
   namespace: exercises
 data:
   PORT: "3002"
-  COUNTER_FILE_PATH: /usr/src/app/shared-data/counter.txt
+  # COUNTER_FILE_PATH: /usr/src/app/shared-data/counter.txt <- unused
+  DB_HOST: "postgres-svc"
+  DB_PORT: "5432"
+  DB_NAME: "pingpong"

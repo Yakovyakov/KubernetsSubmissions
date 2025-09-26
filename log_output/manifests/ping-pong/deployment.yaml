@@ -15,14 +15,9 @@ spec:
     spec:
       containers:
         - name: pingpong
-          image: yakovyakov/pingpong-app:2.1
-          volumeMounts:
-            - name: counter-storage
-              mountPath: /usr/src/app/shared-data
+          image: yakovyakov/pingpong-app:3.0
           envFrom:
             - configMapRef:
                 name: ping-pong-config
-      volumes:
-        - name: counter-storage
-          persistentVolumeClaim:
-            claimName: counter-pvc
+            - secretRef:
+                name: postgres-secret

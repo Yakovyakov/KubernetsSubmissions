@@ -1,23 +1,29 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 2.5: Documentation and ConfigMaps
+# Kubernetes Exercise 2.7: Stateful Applications with PostgreSQL
 
-This exercise demonstrates how to use **ConfigMaps** in Kubernetes to inject non-confidential configuration data into the `log-writer` container, including a file and an environment variable.
+This exercise demonstrates how to run a **PostgreSQL database as a StatefulSet** in Kubernetes and use it to store the ping-pong counter statefully, replacing the previous file-based storage.
 
 ## Objective
 
-* Create a ConfigMap named `log-config` with:
-  * A file: `information.txt` → content: `this text is from file`
-  * An environment variable: `MESSAGE=hello world`
-* Mount the file as a volume in the `log-writer` container
-* Inject the environment variable into the container
-* Verify that both values appear in the log output via `/status`
+* Run PostgreSQL as a **StatefulSet** with one replica using `postgresql`
+
+* Store the ping-pong counter in a PostgreSQL database instead of a local file
+
+* Use **Kubernetes Secrets** for secure database credentials
+
+* Ensure the counter persists across pod restarts and crashes
+
+* Maintain backward compatibility with the log-writer service
 
 ## Components
 
 | Component | Role |
 |--------|------|
 | `exercises` namespace | Isolated environment for exercise-related workloads |
-| `ping-pong` | Increments and persists a counter. Exposes `/pingpong` and `/pings` endpoints. |
+| `postgres-ss` StatefulSet | PostgreSQL database with persistent storage |
+| `postgres-secret` | Secret containing DB_USER and DB_PASSWORD |
+| `postgres-svc` | Headless service for PostgreSQL discover |
+| `ping-pong` (v3.0) | Increments and persists a counter. Exposes `/pingpong` and `/pings` endpoints. Updated to use PostgreSQL for counter storage |
 | `log-writer` | Generates a UUID and logs it every 5 seconds, including the current ping count fetched via HTTP **and ConfigMap data** |
 | `log-reader` | Serves the log file via HTTP (`/logs`, `/status`) |
 | `pingpong-svc` | Kubernetes Service exposing `ping-pong` internally |
@@ -32,7 +38,7 @@ This exercise demonstrates how to use **ConfigMaps** in Kubernetes to inject non
   ```tree
   .
   ├── apps                                # Applications code
-  │   ├── log-output                      # old log-output app, only for historical props
+  |   ├── log-output                      # old log-output app, only for historical props
   │   ├── log-writer                      # log-writer app
   │   │   ├── Dockerfile                  # Docker file
   │   │   ├── index.js
@@ -41,7 +47,7 @@ This exercise demonstrates how to use **ConfigMaps** in Kubernetes to inject non
   │   │   ├── Dockerfile                  # Docker file
   │   │   ├── index.js
   │   │   └── package.json
-  │   ├── ping-pong                       # ping-pong app
+  │   ├── ping-pong                       # ping-pong app (updated for PostgreSQL)
   │   │   ├── Dockerfile                  # Docker file
   │   │   ├── index.js
   │   │   └── package.json
@@ -51,11 +57,15 @@ This exercise demonstrates how to use **ConfigMaps** in Kubernetes to inject non
   │   │   ├── log-writer-config.yaml      # LOG_FILE_PATH, PING_SERVER_URL
   │   │   ├── log-reader-config.yaml      # PORT, LOG_FILE_PATH
   │   │   └── ping-pong-config.yaml       # PORT, COUNTER_FILE_PATH
+  │   ├── postgresql                      # PostgreSQL resources
+  │   │   ├── secret.yaml                 # Database credentials (DB_USER, DB_PASSWORD)
+  │   │   ├── statefulset.yaml            # PostgreSQL StatefulSet
+  │   │   └── service.yaml                # Headless service (postgres-svc)
   │   ├── log-output                      # Contains multi-container Pod resources
   │   │   ├── deployment.yaml             # Pod with log-writer + log-reader + shared volumes (empty dir)
   │   │   └── service.yaml                # Expose only the log-reader
-  │   ├── ping-pong                       # ping-pong App-specific resources + shared volume
-  │   │   ├── deployment.yaml
+  │   ├── ping-pong                       # ping-pong App-specific resources 
+  │   │   ├── deployment.yaml             # Updated with DB env from ConfigMap + Secret
   │   │   └── service.yaml
   │   ├── storage                         # Storage Configuration
   │   │   ├── persistenvolume.yaml
@@ -107,38 +117,80 @@ Image was pushed to Docker Hub repo: [yakovyakov/log-reader:3.0](https://hub.doc
 
 Application: [apps/log-reader](./apps/log-reader/)
 
-### Ping Pong Application
+### Ping Pong Application (v3.0 - Updated)
 
-A simple Node.js web server that:
+A simple Node.js web server that now uses PostgreSQL for persistence:
 
-* Maintains an in-memory request counter
-
+* Maintains a request counter in **PostgreSQL database**
 * Expose two HTTP GET endpoints:
 
   * `/pings`: Returns the current counter as JSON: `{ "pings": <number> }`
   
-  * `/pingpong`: return "pong <current_counter>". Increments the counter with each request (start at 0), and save the counter in a file
+  * `/pingpong`: return "pong <current_counter>". Increments the counter with each request
+* **Database schema** (automatically initialized by PostgreSQL):
 
-* Configurable port via environment variable (PORT)
+    ```sql
+    CREATE TABLE IF NOT EXISTS counter (
+      id SERIAL PRIMARY KEY,
+      value INTEGER NOT NULL DEFAULT 0
+    );
+    ```
 
-* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
+* Configuration via environment variables:
+  * From ConfigMap: `PORT`, `DB_HOST`, `DB_PORT`, `DB_NAME`
 
-Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.1](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=2.1)
+  * From Secret: `DB_USER`, `DB_PASSWORD`
+
+Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:3.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=3.0)
 
 Application: [apps/ping-pong](./apps/ping-pong/)
 
+### PostgreSQL Database (StatefulSet)
+
+* PostgreSQL  running as StatefulSet (`postgres-ss`)
+
+* Persistent storage using `volumeClaimTemplates` with `local-path` storage class
+
+* Headless service `postgres-svc` for direct pod discovery
+
+* Automated initialization with database `pingpong`
+
+* Secure credentials via Kubernetes Secret
+
+---
+
 ## Kubernets Resources
+
+### PostgreSQL Resources
+
+| Resource | Purpose |
+|----------|---------|
+| [StatefulSet (postgresql)](./manifests/postgresql/statefulset.yaml) | PostgreSQL with PVC template |
+| [Secret (postgresql)](./manifests/postgresql/secret.yaml) | DB credentials (`DB_USER`, `DB_PASSWORD`) |
+| [Service (postgresql)](./manifests/postgresql/service.yaml) | Headless service for PostgreSQL |
+
+### Application Resources
+
+| Resource | Purpose |
+|----------|---------|
+| [Deployment (pingpong-dep)](./manifests/ping-pong/deployment.yaml) | Runs the `ping-pong` app Updated with DB env from ConfigMap + Secret |
+| [Deployment (logoutput-dep)](./manifests/log-output/deployment.yaml)  | Runs `log-writer` and `log-reader` (no PVC mounted) |
+| [Service (pingpong-svc)](./manifests/ping-pong/service.yaml) | Exposes `ping-pong` on port 2345|
+| [Service (logoutput-svc)](./manifests/log-output/service.yaml)| Exposes `log-reader` on port 2345 |
+
+### Configuration Resources
 
 | Resource | Purpose |
 |--------|---------|
 | [ConfigMap (log-config)](./manifests/configmaps/log-config.yaml) | Stores `information.txt` and `MESSAGE` for `log-writer` |
 | [ConfigMap (log-writer-config)](./manifests/configmaps/log-writer-config.yaml) | Configuration: `LOG_FILE_PATH`, `PING_SERVER_URL` |
 | [ConfigMap (log-reader-config)](./manifests/configmaps/log-reader-config.yaml) | Configuration: `PORT`, `LOG_FILE_PATH` |
-| [ConfigMap (ping-pong-config)](./manifests/configmaps/ping-pong-config.yaml) | Configuration: `PORT`, `COUNTER_FILE_PATH` |
-| [Deployment (pingpong-dep)](./manifests/ping-pong/deployment.yaml) | Runs the `ping-pong` app with counter persistence (PVC) |
-| [Deployment (logoutput-dep)](./manifests/log-output/deployment.yaml)  | Runs `log-writer` and `log-reader` (no PVC mounted) |
-| [Service (pingpong-svc)](./manifests/ping-pong/service.yaml) | Exposes `ping-pong` on port 2345|
-| [Service (logoutput-svc)](./manifests/log-output/service.yaml)| Exposes `log-reader` on port 2345 |
+| [ConfigMap (ping-pong-config)](./manifests/configmaps/ping-pong-config.yaml) | Configuration: DB connection settings (host, port, name) |
+
+### Storage & Networking
+
+| Resource | Purpose |
+|--------|---------|
 | [PersistentVolume](./manifests/storage/persistentvolume.yaml)  | HostPath volume for persistent counter storage |
 | [PersistentVolumeClaim](./manifests/storage/persistentvolumeclaim.yaml) | Claim used by `ping-pong` to persist the counter |
 | `Ingress`  | Routes `/pingpong`, `/logs`, and `/status` to services |
@@ -148,12 +200,16 @@ Application: [apps/ping-pong](./apps/ping-pong/)
 ## Diagram
 
   ```mermaid
-  graph TD
+graph TD
   subgraph Kubernetes Cluster
     subgraph Ingress
       I[Ingress Controller]
     end
     subgraph "Namespace: exercises"
+      subgraph PostgreSQL StatefulSet
+        PG[PostgreSQL Pod]
+      end
+      
       subgraph Ping-pong Deployment
         PP[Ping-pong Pod]
       end
@@ -167,9 +223,13 @@ Application: [apps/ping-pong](./apps/ping-pong/)
       end
       
       subgraph Volumes
-        PV[(Persistent Volume<br>Counter)]
+        PV[(Persistent Volume<br>Database)]
         CM[ConfigMap<br>Information.txt + MESSAGE]
         LV[emptyDir Volume<br>Logs]
+      end
+
+      subgraph Secrets
+        SEC[Postgres Secret<br>Credentials]
       end
     end
   end
@@ -183,14 +243,17 @@ Application: [apps/ping-pong](./apps/ping-pong/)
   I -->|/status| LR
   LW -.->|GET /pings| PP
   LW -.->|Mounts| CM
-  PP -->|Read/Write| PV
+  PP -->|Read/Write| PG
+  PG -->|Persist| PV
+  PP -->|Credentials| SEC
   LW -->|Write| LV
   LR -->|Read| LV
 
-  class PP,LO pod;
+  class PP,LO,PG pod;
   class LW,LR container;
-  class PV,LV storage;
+  class PV storage;
   class I ingress;
+  class SEC secret;
   ```
 
 ## Initial setup
@@ -208,28 +271,28 @@ Application: [apps/ping-pong](./apps/ping-pong/)
     kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
     ```
 
-### Create the `exercises` namespace
+### Apply Kubernetes Resources
 
-  ```bash
+  ```bash# Create namespace
   kubectl create namespace exercises || true
+
+  # Apply storage (PV for counter)
+  kubectl apply -f manifests/storage/ -n exercises
+
+  # Apply PostgreSQL resources
+  kubectl apply -f manifests/postgresql/ -n exercises
+
+  # Apply ConfigMaps
+  kubectl apply -f manifests/configmaps/ -n exercises
+
+  # Wait for PostgreSQL to be ready
+  kubectl wait --for=condition=ready pod -l app=postgres -n exercises --timeout=120s
+
+  # Apply applications
+  kubectl apply -f manifests/ping-pong/ -n exercises
+  kubectl apply -f manifests/log-output/ -n exercises
+  kubectl apply -f manifests/ingress.yaml -n exercises
   ```
-
-### Apply ConfigMaps
-
-```bash
-kubectl apply -f manifests/configmaps/ -n exercises
-```
-
-### Deploy All
-
-Apply all configurations:
-
-  ```bash
-kubectl apply -f manifests/storage/ -n exercises
-kubectl apply -f manifests/ping-pong/ -n exercises
-kubectl apply -f manifests/log-output/ -n exercises
-kubectl apply -f manifests/ingress.yaml -n exercises
-```
 
 > ⚠️ Note:<br>
 > Although the YAML has namespace: exercises, it is still good practice to use -n exercises for consistency.<br>
@@ -245,6 +308,8 @@ Add this line to `/etc/hosts` :
 127.0.0.1 exercises.local
 ```
 
+---
+
 ## Access Applications
 
 After editing /etc/hosts, you can access:
@@ -257,35 +322,121 @@ After editing /etc/hosts, you can access:
 
 ## Verification and Monitoring
 
-1. Check resources
+### 1. Check all resources
 
-    ```bash
-    kubectl get pods,pv,pvc,services,configmaps -n exercises
-    ```
+  ```bash
+  kubectl get pods,statefulsets,deployments,services,secrets,configmaps,pv,pvc -n exercises
+  ```
 
-2. Check ConfigMap
+### 2. Verify PostgreSQL StatefulSet
 
-    ```bash
-    kubectl get configmap log-config -n exercises -o yaml
-    kubectl get configmap log-reader-config -n exercises -o yaml
-    kubectl get configmap log-writer-config -n exercises -o yaml
-    kubectl get configmap ping-pong-config -n exercises -o yaml
-    ```
+  ```bash
+  # Check StatefulSet status
+  kubectl get statefulset postgres-ss -n exercises
 
-3. Check /status output
+  # Check PostgreSQL pod
+  kubectl get pods -l app=postgres -n exercises
 
-    ```bash
-    curl http://exercises.local:8081/status
-    ```
+  # Check PVC created by StatefulSet
+  kubectl get pvc -n exercises | grep postgres-data
+  ```
 
-    Should show:
+### 3. Test Database Connectivity
 
-    ```text
-    file content: this text is from file
-    env variable: MESSAGE=hello world
-    2025-08-26T15:48:29.960Z: 10a5d22-47dc-4828-aa28-5b108295a08d
-    Ping/Pongs: 0
-    ```
+  ```bash
+    # Test database connection from ping-pong pod
+  kubectl exec -it deployment/pingpong-dep -n exercises -- \
+  sh -c 'PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT * FROM counter;"'
+  ```
+
+### 4. Test Application Functionality
+
+  ```bash
+  # Test ping-pong endpoint (should increment counter in database)
+  curl http://exercises.local:8081/pingpong
+  curl http://exercises.local:8081/pingpong
+
+  # Check counter via API
+  curl http://exercises.local:8081/pings
+
+  # Verify logs contain counter from database
+  curl http://exercises.local:8081/status
+  ```
+
+### 5. Test Persistence
+
+  ```bash
+  # Restart ping-pong pod
+  kubectl delete pod -l app=pingpong -n exercises
+
+  # Counter should persist after restart (from database)
+  curl http://exercises.local:8081/pings
+
+  # Restart PostgreSQL pod
+  kubectl delete pod -l app=postgres -n exercises
+
+  # Wait for restart and check data persistence
+  kubectl wait --for=condition=ready pod -l app=postgres -n exercises --timeout=120s
+  curl http://exercises.local:8081/pings
+  ```
+
+### Expected Output
+
+#### /status Endpoint
+
+```text
+file content: this text is from file
+env variable: MESSAGE=hello world
+2025-08-26T15:48:29.960Z: 10a5d22-47dc-4828-aa28-5b108295a08d
+Ping / Pongs: 15
+```
+
+#### /pings Endpoint
+
+```json
+{"pings": 15}
+```
+
+#### /pingpong Endpoint
+
+```text
+pong 16
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+* PostgreSQL StatefulSet not ready: Check PVC binding and pod logs
+
+* Connection refused: Verify postgres-svc service exists and endpoints are correct
+
+* Authentication failed: Check secret values and PostgreSQL logs
+
+* Storage issues: Verify local-path storage class is available in k3d
+
+### Debug Commands
+
+```bash
+# Check PostgreSQL logs
+kubectl logs statefulset/postgres-ss -n exercises
+
+# Check ping-pong logs
+kubectl logs deployment/pingpong-dep -n exercises
+
+# Verify service endpoints
+kubectl get endpoints postgres-svc -n exercises
+kubectl get endpoints pingpong-svc -n exercises
+
+# Check environment variables in ping-pong pod
+kubectl exec -it deployment/pingpong-dep -n exercises -- env | grep DB_
+
+# Test database connection manually
+kubectl run -it --rm --restart=Never --image postgres:13.0 psql-test -n exercises -- \
+  psql postgres://postgres:password@postgres-svc:5432/pingpong -c "SELECT * FROM counter;"
+```
 
 ## Screenshoots
 
