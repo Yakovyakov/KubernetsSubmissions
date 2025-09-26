@@ -258,18 +258,18 @@ graph TD
 
 ## Initial setup
 
-1. Create cluster (without Traefik):
+### 1. Create cluster (without Traefik)
 
-    ```bash
-    k3d cluster delete
-    k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0"
-    ```
+  ```bash
+  k3d cluster delete
+  k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2 --k3s-arg "--disable=traefik@server:0"
+  ```
 
-2. Install Nginx Ingress Controller:
+### 2. Install Nginx Ingress Controller
 
-    ```bash
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
-    ```
+  ```bash
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+  ```
 
 ### Apply Kubernetes Resources
 
@@ -344,9 +344,16 @@ After editing /etc/hosts, you can access:
 ### 3. Test Database Connectivity
 
   ```bash
-    # Test database connection from ping-pong pod
-  kubectl exec -it deployment/pingpong-dep -n exercises -- \
-  sh -c 'PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "SELECT * FROM counter;"'
+  # Get the environment variables from the pingpong pod
+  DB_HOST=$(kubectl exec deployment/pingpong-dep -n exercises -- sh -c 'echo $DB_HOST')
+  DB_PORT=$(kubectl exec deployment/pingpong-dep -n exercises -- sh -c 'echo $DB_PORT')
+  DB_USER=$(kubectl exec deployment/pingpong-dep -n exercises -- sh -c 'echo $DB_USER')
+  DB_PASSWORD=$(kubectl exec deployment/pingpong-dep -n exercises -- sh -c 'echo $DB_PASSWORD')
+  DB_NAME=$(kubectl exec deployment/pingpong-dep -n exercises -- sh -c 'echo $DB_NAME')
+
+ # Run the temporary pod
+  kubectl run -it --rm --restart=Never --image postgres psql-for-debugging -n exercises --   sh -c "PGPASSWORD='$DB_PASSWORD' PAGER=cat psql -q -h '$DB_HOST' -p '$DB_PORT' -U '$DB_USER' -d '$DB_NAME' -c 'SELECT * FROM counter;' -v ON_ERROR_STOP=1"
+
   ```
 
 ### 4. Test Application Functionality
@@ -356,8 +363,6 @@ After editing /etc/hosts, you can access:
   curl http://exercises.local:8081/pingpong
   curl http://exercises.local:8081/pingpong
 
-  # Check counter via API
-  curl http://exercises.local:8081/pings
 
   # Verify logs contain counter from database
   curl http://exercises.local:8081/status
@@ -366,18 +371,21 @@ After editing /etc/hosts, you can access:
 ### 5. Test Persistence
 
   ```bash
-  # Restart ping-pong pod
-  kubectl delete pod -l app=pingpong -n exercises
-
   # Counter should persist after restart (from database)
-  curl http://exercises.local:8081/pings
+  curl http://exercises.local:8081/status
 
   # Restart PostgreSQL pod
   kubectl delete pod -l app=postgres -n exercises
 
+  # Restart ping-pong pod
+  kubectl delete pod -l app=pingpong -n exercises
+
   # Wait for restart and check data persistence
   kubectl wait --for=condition=ready pod -l app=postgres -n exercises --timeout=120s
-  curl http://exercises.local:8081/pings
+
+  sleep 10
+
+  curl http://exercises.local:8081/status
   ```
 
 ### Expected Output
@@ -389,12 +397,6 @@ file content: this text is from file
 env variable: MESSAGE=hello world
 2025-08-26T15:48:29.960Z: 10a5d22-47dc-4828-aa28-5b108295a08d
 Ping / Pongs: 15
-```
-
-#### /pings Endpoint
-
-```json
-{"pings": 15}
 ```
 
 #### /pingpong Endpoint
@@ -440,4 +442,18 @@ kubectl run -it --rm --restart=Never --image postgres:13.0 psql-test -n exercise
 
 ## Screenshoots
 
-<img src="../IMG/exercise_2_5.png" alt="Screenshoot exercise 2.5" width="600">
+### Test Application Functionality
+
+<img src="../IMG/exercise_2_7_a.png" alt="Test Application Functionality" width="600">
+
+### Check all resources
+
+<img src="../IMG/exercise_2_7_b.png" alt="check all resources" width="600">
+
+### Database connection
+
+<img src="../IMG/exercise_2_7_c.png" alt="Database connection" width="600">
+
+### Test persistence
+
+<img src="../IMG/exercise_2_7_d.png" alt="Test persistence" width="600">
