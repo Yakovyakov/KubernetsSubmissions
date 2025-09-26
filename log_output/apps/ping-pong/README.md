@@ -2,17 +2,17 @@
 
 A simple Node.js web server that:
 
-* Maintains an in-memory request counter
-
-* Expose a GET /pingpong endpoint that return "pong <current_counter>"
-
-  * Increments the counter with each request (start at 0), and save the counter in a file
-
-* Expose a GET /pings endpoint that return {pings: <current_counter>}
-
+* **Stores and retrieves a request counter from a PostgreSQL database** (instead of in-memory or file-based storage)
+* Exposes a GET /pingpong endpoint that returns "pong <current_counter>"
+  * Increments the counter with each request (starting at 0) and persists it in the database
+* Exposes a GET /pings endpoint that returns { "pings": <current_counter> }
 * Configurable port via environment variable (PORT)
-
-* Configurable counter file via environment variable (COUNTER_FILE_PATH), the default counter file is "shared-data/counter.txt"
+* Database connection configurable via environment variables:
+  * `DB_HOST` (default: postgres-svc)
+  * `DB_PORT` (default: 5432)
+  * `DB_NAME` (default: pingpong)
+  * `DB_USER` (default: postgres)
+  * `DB_PASSWORD` (default: password)
 
 ## Running the Application Locally
 
@@ -38,7 +38,7 @@ Execute in a defafult port(3002):
   > ping-pong-app@2.0.0 start
   > node index.js
 
-  Ping-pong service started on port 3002
+  Ping-pong service with PostgreSQL started on port 3002
 
   ```
 
@@ -68,7 +68,7 @@ Execute in a defafult port(3002):
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/pingpong-app:2.1 .
+  docker build -t <your-dockerhub-username>/pingpong-app:3.0 .
   ```
 
 ## Pushing to Docker Hub
@@ -82,7 +82,7 @@ Execute in a defafult port(3002):
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/pingpong-app:2.1
+  docker push <your-dockerhub-username>/pingpong-app:3.0
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:2.1](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=2.1)
+Image was pushed to Docker Hub repo: [yakovyakov/pingpong-app:3.0](https://hub.docker.com/r/yakovyakov/pingpong-app/tags?name=3.0)
