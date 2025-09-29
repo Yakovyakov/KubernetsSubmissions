@@ -15,7 +15,9 @@ spec:
     spec:
       containers:
         - name: todo-backend
-          image: yakovyakov/todo-backend:1.0
+          image: yakovyakov/todo-backend:2.0
           envFrom:
             - configMapRef:
                 name: todo-backend-config
+            - secretRef:
+                name: postgres-secret
