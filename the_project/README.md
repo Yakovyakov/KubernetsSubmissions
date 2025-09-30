@@ -490,5 +490,14 @@ WHERE table_name = 'todos' AND column_name = 'text';
 
 ## ScreenShoot
 
-Updates Images
-<img src="../IMG/exercise_2_6.png" alt="Screenshoot Exercise 2.6" width="600">
+### Resources
+
+<img src="../IMG/exercise_2_8_a.png" alt="Kubernetes resources" width="600">
+
+### Tests
+
+<img src="../IMG/exercise_2_8_b.png" alt="Some Tests" width="600">
+
+### Application in browser
+
+<img src="../IMG/exercise_2_8_c.png" alt="App in browser" width="600">
