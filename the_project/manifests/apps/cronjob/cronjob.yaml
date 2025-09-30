@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wikipedia-todo-cronjob
+  namespace: project
+  labels:
+    app: wikipedia-todo-generator
+    component: cronjob
+spec:
+  schedule: "0,5,30,40,50 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    metadata:
+      labels:
+        app: wikipedia-todo-generator
+        component: job
+    spec:
+      template:
+        metadata:
+          labels:
+            app: wikipedia-todo-generator
+            component: pod
+        spec:
+          containers:
+          - name: wikipedia-todo-generator
+            image: curlimages/curl:latest
+            command: 
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting Wikipedia Todo Generator..."
+              /scripts/wikipedia-todo-generator.sh
+            volumeMounts:
+            - name: script-volume
+              mountPath: /scripts
+              readOnly: true
+          volumes:
+          - name: script-volume
+            configMap:
+              name: wikipedia-todo-script
+              defaultMode: 0755
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 30

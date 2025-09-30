@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wikipedia-todo-script
+  namespace: project
+data:
+  wikipedia-todo-generator.sh: |
+    #!/bin/sh
+    set -e
+
+    echo " Starting Wikipedia todo generator..."
+    echo "----------------------------------------"
+    
+    echo " Fetching random Wikipedia article..."
+    RANDOM_URL=$(curl -s -I -L -o /dev/null -w '%{url_effective}' "https://en.wikipedia.org/wiki/Special:Random")
+
+    if [ -z "$RANDOM_URL" ]; then
+        echo "    ERROR: Failed to get random Wikipedia URL"
+        exit 1
+    fi
+
+    echo " Got Wikipedia URL: $RANDOM_URL"
+
+
+    TODO_TEXT="Read $RANDOM_URL"
+    if [ ${#TODO_TEXT} -gt 140 ]; then
+        MAX_URL_LENGTH=$((140 - 6))
+        # Truncate URL and add ellipsis if needed
+        TRUNCATED_URL="${RANDOM_URL:0:$MAX_URL_LENGTH}..."
+        TODO_TEXT="Read $TRUNCATED_URL"
+        echo "    INFO: URL truncated to fit 140-character limit"
+    fi
+
+    echo "    INFO: Todo text: $TODO_TEXT"
+    echo "    INFO: Character count: ${#TODO_TEXT}"
+
+    echo "    INFO: Creating todo via todo-backend API..."
+
+    TEMP_FILE=$(mktemp)
+    HTTP_CODE=$(curl -s -o "$TEMP_FILE" -w "%{http_code}" -X POST \
+        -H "Content-Type: application/json" \
+        -H "User-Agent: Wikipedia-Todo-CronJob/1.0" \
+        -d "{\"text\":\"$TODO_TEXT\"}" \
+        http://todo-backend-svc:2345/todos)
+
+    RESPONSE_BODY=$(cat "$TEMP_FILE")
+    rm -f "$TEMP_FILE"
+
+    if [ "$HTTP_CODE" -eq 201 ]; then
+        echo "    INFO: Todo created successfully!"
+        echo "    INFO: Response: $RESPONSE_BODY"
+    else
+        echo "    ERROR: Failed to create todo. HTTP Code: $HTTP_CODE"
+        echo "    ERROR: Response: $RESPONSE_BODY"
+        exit 1
+    fi
+
+    echo "----------------------------------------"
+    echo " Wikipedia todo generation completed!"
