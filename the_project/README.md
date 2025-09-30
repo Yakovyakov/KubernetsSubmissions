@@ -1,30 +1,36 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 2.8: Database Integration for Todo Application
+# Kubernetes Exercise 2.9: CronJob for Random Wikipedia Todos
 
-This exercise integrates **PostgreSQL as a StatefulSet** to persist todo items in the project application, replacing the previous in-memory storage.
+This exercise implements a **CronJob** that automatically generates a new todo every hour with a reminder to read a random Wikipedia article, while maintaining all existing applications and resources.
 
 ## Objective
 
-* Use the existing PostgreSQL StatefulSet to store todo items
+* Create a CronJob that runs every hour
 
-* Update the todo-backend service to use PostgreSQL database
+* Store the script in a `ConfigMap` for easy maintenance
 
-* Use **Secrets and ConfigMaps** for secure database configuration
+* Generate a new todo with a random Wikipedia article URL
 
-* Ensure todos persist across pod restarts and deployments
+* Use the Wikipedia `Special:Random` endpoint to get random articles
 
-* Maintain the 140-character limit validation in the backend
+* Extract the final URL from redirect headers
+
+* Create todos through the todo-backend API
+
+* Maintain the 140-character limit validation
 
 ## Components
 
 | Component | Role |
 |--------|------|
 | `project` namespace | Isolated environment for the project |
+| `wikipedia-todo-cronjob` | CronJob that runs hourly |
+| `wikipedia-todo-script` | ConfigMap containing the bash script |
 | `postgres-ss` StatefulSet | PostgreSQL database for todo storage |
 | `postgres-secret` | Secret containing database credentials |
 | `postgres-svc` | Headless service for PostgreSQL |
 | `todo-frontend` | React SPA served via Nginx |
-| `todo-backend` (v2.0) | REST API: `GET /todos`, `POST /todos` (Updated to use PostgreSQL for todo persistence) |
+| `todo-backend` | REST API: `GET /todos`, `POST /todos` (Updated to use PostgreSQL for todo persistence) |
 | `image-service` | Fetches and caches a random image from `picsum.photos` |
 | `image-cache-pvc` | PersistentVolumeClaim for storing the cached image |
 | `project.local` | Custom domain for accessing the project |
@@ -37,6 +43,8 @@ This exercise integrates **PostgreSQL as a StatefulSet** to persist todo items i
 > * Frontend → `POST/GET /api/todo-service/todos` → todo-backend → PostgreSQL
 > * Frontend → `GET /api/image-service/random-image`
 > * `todo-backend` stores todos in PostgreSQL database
+>
+> 🔁 Workflow: CronJob → Wikipedia API → todo-backend → PostgreSQL
 
 ## The project structure
 
@@ -44,14 +52,17 @@ This exercise integrates **PostgreSQL as a StatefulSet** to persist todo items i
   the_project/
   ├── manifests/
   │   ├── configmaps/
-  │   │   ├── todo-backend-config.yaml    # Updated with DB settings
+  │   │   ├── cronjob-config.yaml           # NEW: CronJob configmaps
+  │   │   ├── todo-backend-config.yaml    
   │   │   ├── image-service-config.yaml
   │   │   └── todo-frontend-config.yaml
   │   ├── storage/
   │   │   ├── persistentvolume.yaml
   │   │   └── persistentvolumeclaim.yaml
   │   ├── apps/
-  │   │   ├── postgresql/                 # PostgreSQL StatefulSet
+  │   │   ├── cronjob/                      # NEW: CronJob resources
+  │   │   │   ├── cronjob.yaml
+  │   │   ├── postgresql/                 
   │   │   │   ├── secret.yaml
   │   │   │   ├── statefulset.yaml
   │   │   │   └── service.yaml
@@ -62,7 +73,7 @@ This exercise integrates **PostgreSQL as a StatefulSet** to persist todo items i
   │   │   │   ├── deployment.yaml
   │   │   │   └── service.yaml
   │   │   └── todo-backend/
-  │   │       ├── deployment.yaml         # Updated with DB settings
+  │   │       ├── deployment.yaml         
   │   │       └── service.yaml
   │   └── ingress.yaml
   ├── services/
@@ -84,6 +95,22 @@ This exercise integrates **PostgreSQL as a StatefulSet** to persist todo items i
   ```
   
 ## Application Overview
+
+### Wikipedia Todo CronJob (NEW)
+
+A Kubernetes CronJob that uses a ConfigMap-stored script to:
+
+* **Runs every hour** at minute 0
+
+* **Fetches a random Wikipedia article** using `https://en.wikipedia.org/wiki/Special:Random`
+
+* **Extracts the final URL** from the redirect headers
+
+* **Creates a new todo** via the todo-backend API
+
+* **Handles URL truncation** to fit within 140-character limit
+
+* **Includes comprehensive error handling** and logging
 
 ### Frontend (React + Nginx)
 
@@ -164,6 +191,13 @@ Application: [services/todo-backend](./services/todo-backend/)
 
 ## Kubernets Resources
 
+### CronJob Resources
+
+| Resources | Purpose |
+|-----------|---------|
+| [CronJob](manifests/apps/cronjob/cronjob.yaml) | Scheduled job that runs hourly |
+| [ConfigMap](./manifests/configmaps/cronjob-config.yaml) | Contains the bash script for todo generation|
+
 ### PostgreSQL Resources
 
 | Resources | Purpose |
@@ -200,6 +234,8 @@ Application: [services/todo-backend](./services/todo-backend/)
 | [Ingress](./manifests/ingress.yaml) | Routes external traffic: <br> - `/api/image-service/*` →  `image-service-svc` <br> - `/`  → `frontend-svc` <br> - `/api/todo-backend/*` →  `todo-backend-svc`|
 
 ## Diagram
+
+### Overall Architecture Diagram
 
 ```mermaid
 graph TD
@@ -281,6 +317,49 @@ graph TD
   class SVC1,SVC2,SVC3,SVC4 service;
 ```
 
+### CronJob Detailed Workflow
+
+```mermaid
+graph TD
+  subgraph Kubernetes Cluster
+    subgraph "Namespace: project"
+      subgraph ConfigMap
+        CM[wikipedia-todo-script]
+      end
+      
+      subgraph CronJob
+        CJ[CronJob Pod<br>curl image]
+      end
+      
+      subgraph Todo Backend Deployment
+        TB[todo-backend Pod]
+      end
+      
+      subgraph PostgreSQL StatefulSet
+        PG[PostgreSQL Pod]
+      end
+
+      subgraph Services
+        SVC1[todo-backend-svc]
+        SVC2[postgres-svc]
+      end
+    end
+  end
+
+  subgraph External Services
+    WIKI[Wikipedia<br>Special:Random]
+  end
+
+  CM -->|Mounts Script| CJ
+  CJ -->|1. Get random article| WIKI
+  CJ -->|2. Create todo| SVC1 --> TB
+  TB -->|3. Store in database| SVC2 --> PG
+
+  class CJ,TB,PG pod;
+  class SVC1,SVC2 service;
+  class CM configmap;
+```
+
 ## Deployment Steps
 
 ### 1. Create cluster (without Traefik)
@@ -299,17 +378,15 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes ingress-nginx/main
 ### 3. Apply Kubernetes Resources
 
 ```bash
-# Apply PostgreSQL resources (if not already deployed)
-kubectl apply -f manifests/apps/postgresql/ -n project
-
-# Wait for PostgreSQL to be ready
-kubectl wait --for=condition=ready pod -l app=postgres -n project --timeout=120s
-
-# Apply updated ConfigMap and Deployment
-kubectl apply -f manifests/configmaps/todo-backend-config.yaml -n project
-kubectl apply -f manifests/apps/todo-backend/deployment.yaml -n project
+# Apply CronJob resources (if not already deployed)
+kubectl apply -f manifests/configmaps/cronjob-config.yaml -n project
+kubectl apply -f manifests/apps/cronjob/ -n project
 
 # Apply other resources (if not already deployed)
+kubectl apply -f manifests/apps/postgresql/ -n project
+kubectl wait --for=condition=ready pod -l app=postgres -n project --timeout=120s
+kubectl apply -f manifests/configmaps/todo-backend-config.yaml -n project
+kubectl apply -f manifests/apps/todo-backend/deployment.yaml -n project
 kubectl apply -f manifests/storage/ -n project
 kubectl apply -f manifests/configmaps/ -n project
 kubectl apply -f manifests/apps/todo-frontend/ -n project
@@ -354,27 +431,48 @@ After setting up DNS:
 4. Type a new todo (≤140 chars), click "Send"
 5. New todo appears in the list
 6. Refresh → todos still visible
+7. Every hour the cronjob must enter a new todo
 
 ### Check All Resources
 
 ```bash
-kubectl get pods,statefulsets,deployments,services,secrets,configmaps,pv,pvc -n project
+# Check NEW CronJob resources
+kubectl get cronjobs -n project
+kubectl get configmaps -n project
+
+# Check EXISTING resources (should already be deployed)
+kubectl get pods,services,deployments,statefulsets -n project
+kubectl get pv,pvc -n project
+kubectl get ingress -n project
 ```
 
-### Verify Database Connectivity
+### Check CronJob Status (NEW)
 
-  ```bash
-  # Get the environment variables from the todo-backend pod
-  DB_HOST=$(kubectl exec deployment/todo-backend-dep -n project -- sh -c 'echo $DB_HOST')
-  DB_PORT=$(kubectl exec deployment/todo-backend-dep -n project -- sh -c 'echo $DB_PORT')
-  DB_USER=$(kubectl exec deployment/todo-backend-dep -n project -- sh -c 'echo $DB_USER')
-  DB_PASSWORD=$(kubectl exec deployment/todo-backend-dep -n project -- sh -c 'echo $DB_PASSWORD')
-  DB_NAME=$(kubectl exec deployment/todo-backend-dep -n project -- sh -c 'echo $DB_NAME')
+```bash
 
- # Run the temporary pod
-  kubectl run -it --rm --restart=Never --image postgres psql-for-debugging -n project --   sh -c "PGPASSWORD='$DB_PASSWORD' PAGER=cat psql -q -h '$DB_HOST' -p '$DB_PORT' -U '$DB_USER' -d '$DB_NAME' -c 'SELECT * FROM todos;' -v ON_ERROR_STOP=1"
+# List CronJobs
+kubectl get cronjob -n project
 
-  ```
+# Describe CronJob
+kubectl describe cronjob wikipedia-todo-cronjob -n project
+
+# Check ConfigMap content
+kubectl get configmap wikipedia-todo-script -n project -o yaml
+```
+
+### Manual Trigger (for testing)
+
+```bash
+
+# Create a job from the CronJob manually
+kubectl create job --from=cronjob/wikipedia-todo-cronjob manual-todo-test -n project
+
+# Check the job status
+kubectl get jobs -n project
+
+# Check the pod logs
+kubectl logs job/manual-todo-test -n project
+```
 
 ### Test Application Functionality
 
@@ -441,63 +539,61 @@ echo ""
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Database connection refused:** Check if PostgreSQL StatefulSet is running
-
-2. **Table initialization failed:** Check todo-backend logs for SQL errors
-
-3. **Authentication failed:** Verify secret values match between backend and PostgreSQL
-
-4. **Data not persisting:** Check PVC binding and PostgreSQL logs
-
-### Debug Commands
+### CronJob Issues (NEW)
 
 ```bash
 
-# Check todo-backend logs
-kubectl logs deployment/todo-backend-dep -n project
+# Check CronJob status
+kubectl describe cronjob wikipedia-todo-cronjob -n project
 
-# Check PostgreSQL logs
-kubectl logs statefulset/postgres-ss -n project
+# Check ConfigMap content
+kubectl get configmap wikipedia-todo-script -n project -o yaml
 
-# Verify database content
-kubectl exec -it statefulset/postgres-ss -n project -- \
-  psql -U postgres -d todo-db -c "SELECT * FROM todos;"
+# Check job history
+kubectl get jobs -n project
 
-# Check environment variables
-kubectl exec -it deployment/todo-backend-dep -n project -- env | grep DB_
+# Check pod logs
+kubectl logs -l app=wikipedia-todo-generator -n project
+
+# Test manual execution
+kubectl create job --from=cronjob/wikipedia-todo-cronjob test-run -n project
 ```
 
-### Database Verification
+### Existing Application Issues
 
-#### Check Database Schema
+```bash
 
-```sql
+# Check todo-backend health (EXISTING)
+curl http://project.local:8081/api/todo-service/health
 
--- Connect to PostgreSQL and verify schema
-\c todo-db
-\d todos
+# Check pod logs (EXISTING)
+kubectl logs deployment/todo-backend-dep -n project
+kubectl logs deployment/image-service-dep -n project
+kubectl logs deployment/todo-frontend-dep -n project
 
--- Check table data
-SELECT * FROM todos;
+# Check database connectivity (EXISTING)
+kubectl exec -it statefulset/postgres-ss -n project -- \
+  psql -U postgres -d todo-db -c "SELECT COUNT(*) FROM todos;"
+```
 
--- Verify character limit constraint
-SELECT character_maximum_length 
-FROM information_schema.columns 
-WHERE table_name = 'todos' AND column_name = 'text';
+### Update Script (if needed)
+
+```bash
+
+# Edit the ConfigMap
+kubectl edit configmap wikipedia-todo-script -n project
+
+# Or re-apply the ConfigMap
+kubectl apply -f manifests/configmaps/cronjob-config.yaml -n project
+
 ```
 
 ## ScreenShoot
 
-### Resources
+### CronJob Deployment and Execution Verification
 
-<img src="../IMG/exercise_2_8_a.png" alt="Kubernetes resources" width="600">
+![Kubernetes resources and CronJob logs](../IMG/exercise_2_9_a.png)
 
-### Tests
+## Application UI with CronJob-Generated Todo
 
-<img src="../IMG/exercise_2_8_b.png" alt="Some Tests" width="600">
-
-### Application in browser
-
-<img src="../IMG/exercise_2_8_c.png" alt="App in browser" width="600">
+![Frontend showing Wikipedia todo and cached image](../IMG/exercise_2_9_b.png)
