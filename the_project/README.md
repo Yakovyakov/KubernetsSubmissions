@@ -1,23 +1,14 @@
 <!-- markdownlint-disable no-inline-html -->
-# Kubernetes Exercise 2.9: CronJob for Random Wikipedia Todos
+# Kubernetes Exercise 2.10: Request Logging and Input Validation
 
-This exercise implements a **CronJob** that automatically generates a new todo every hour with a reminder to read a random Wikipedia article, while maintaining all existing applications and resources.
+This exercise adds **request logging** to the `todo-backend` service and enforces a **140-character limit** on todo text. Invalid requests (empty or too long) are rejected with a `400 Bad Request` response and logged clearly for monitoring.
 
 ## Objective
 
-* Create a CronJob that runs every hour
-
-* Store the script in a `ConfigMap` for easy maintenance
-
-* Generate a new todo with a random Wikipedia article URL
-
-* Use the Wikipedia `Special:Random` endpoint to get random articles
-
-* Extract the final URL from redirect headers
-
-* Create todos through the todo-backend API
-
-* Maintain the 140-character limit validation
+* Log every `POST /todos` request attempt (valid or invalid) to stdout.
+* Validate that the `text` field is present and ≤140 characters.
+* Return clear error messages for invalid inputs.
+* Ensure logs can be viewed with `kubectl logs` (simulating Grafana visibility).
 
 ## Components
 
@@ -147,11 +138,13 @@ Image was pushed to Docker Hub repo: [yakovyakov/image-service 2.0](https://hub.
 
 Application: [services/image-service](./services/image-service/)
 
-### Todo-Backend (Node.js + Express + PostgreSQL) v2.0 - Updated
+### Todo-Backend (Node.js + Express + PostgreSQL) v2.1 - Updated
 
 A Node.js REST API that now uses PostgreSQL for persistent todo storage:
 
 * Stores todos in PostgreSQL instead of in-memory array
+
+* Logs every request attempt (including invalid ones) to stdout.
 
 * Database schema:
 
@@ -173,7 +166,7 @@ A Node.js REST API that now uses PostgreSQL for persistent todo storage:
   * From ConfigMap: `PORT`, `DB_HOST`, `DB_PORT`, `DB_NAME`
   * From Secret: `DB_USER`, `DB_PASSWORD`
 
-Image was pushed to Docker Hub repo: [yakovyakov/todo-backend:2.0](https://hub.docker.com/r/yakovyakov/todo-backend/tags?name=2.0)
+Image was pushed to Docker Hub repo: [yakovyakov/todo-backend:2.1](https://hub.docker.com/r/yakovyakov/todo-backend/tags?name=2.1)
 
 Application: [services/todo-backend](./services/todo-backend/)
 
@@ -257,7 +250,7 @@ graph TD
       end
 
       subgraph Todo Backend Deployment
-        TB[Todo-backend Pod<br>v2.0]
+        TB[Todo-backend Pod<br>]
       end
 
       subgraph Volumes
@@ -446,34 +439,6 @@ kubectl get pv,pvc -n project
 kubectl get ingress -n project
 ```
 
-### Check CronJob Status (NEW)
-
-```bash
-
-# List CronJobs
-kubectl get cronjob -n project
-
-# Describe CronJob
-kubectl describe cronjob wikipedia-todo-cronjob -n project
-
-# Check ConfigMap content
-kubectl get configmap wikipedia-todo-script -n project -o yaml
-```
-
-### Manual Trigger (for testing)
-
-```bash
-
-# Create a job from the CronJob manually
-kubectl create job --from=cronjob/wikipedia-todo-cronjob manual-todo-test -n project
-
-# Check the job status
-kubectl get jobs -n project
-
-# Check the pod logs
-kubectl logs job/manual-todo-test -n project
-```
-
 ### Test Application Functionality
 
 ```bash
@@ -494,6 +459,29 @@ curl -X POST http://project.local:8081/api/todo-service/todos \
   -d '{"text": "This is a very long todo text that exceeds the 140 character limit that we have set for our todo application to ensure that todos remain concise and manageable for users"}'
 ```
 
+#### Check backend logs
+
+```bash
+kubectl logs deployment/todo-backend-dep -n project
+```
+
+Should show:
+
+* A log entry for the valid request (success) with details like:
+
+  ```text
+  [TODO-CREATE] SUCCESS: Created todo with ID 39, "Learn Kubernetes with PostgreSQL"
+
+  ```
+
+* An ERROR log entry for the invalid request with details like:
+
+  ```text
+  [TODO-CREATE] ERROR: Validation failed - Text must be 140 characters or less
+  [TODO-CREATE] Received 169 characters, "This is a very long todo text that exceeds the 140..."
+
+  ```
+
 ### Test Frontend Integration
 
 ```bash
@@ -504,96 +492,56 @@ open http://project.local:8081
 # Verify they persist after page refresh
 ```
 
-### Test Persistence
+## Monitoring Setup (Prometheus, Grafana, Loki)
+
+To enable backend monitoring (including all validation logs), you can install **Prometheus**, **Grafana**, and **Loki** on the cluster following the instructions in the course:
 
 ```bash
+# Add Helm repositories
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
 
-# Restart todo-backend pod
-echo "Restart todo-backend pod"
-kubectl delete pod -l app=todo-backend -n project
-kubectl wait --for=condition=ready pod -l app=todo-backend -n project --timeout=120s
-sleep 5
+# Create namespace
+kubectl create namespace monitoring
 
-# Todos should persist after restart
-echo "Todos should persist after restart"
-curl http://project.local:8081/api/todo-service/todos
+# Install Loki (for log collection)
+helm install loki grafana/loki --namespace monitoring
 
-# Restart PostgreSQL pod
-echo "Restart PostgreSQL pod"
+# Install Promtail (log agent that sends logs to Loki)
+helm install promtail grafana/promtail \
+  --set "loki.serviceName=loki.monitoring.svc.cluster.local" \
+  --namespace monitoring
 
-kubectl delete pod -l app=postgres -n project
+# Install Prometheus
+helm install prometheus prometheus-community/prometheus \
+  --namespace monitoring
 
-# Wait for restart and verify data persistence
-kubectl wait --for=condition=ready pod -l app=postgres -n project --timeout=120s
-
-kubectl delete pod -l app=todo-backend -n project
-kubectl wait --for=condition=ready pod -l app=todo-backend -n project --timeout=120s
-sleep 5
-
-# Todos should persist after restart
-echo "Todos should persist after restart"
-
-curl http://project.local:8081/api/todo-service/todos
-echo ""
+# Install Grafana
+helm install grafana grafana/grafana \
+  --set "grafana.ini.auth.anonymous.enabled=true" \
+  --set "grafana.ini.auth.anonymous.org_role=Admin" \
+  --namespace monitoring
 ```
 
-## Troubleshooting
+Once installed:
 
-### CronJob Issues (NEW)
+* Access Grafana at `http://localhost:3000` (username: `admin`, password: `kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode`).
 
-```bash
+* Configure **Loki** as a data source (`http://loki.loki-stack:3100`).
 
-# Check CronJob status
-kubectl describe cronjob wikipedia-todo-cronjob -n project
+* In the logs panel, filter by `{namespace="project", app="todo-backend"}` to see backend validation and error messages.
 
-# Check ConfigMap content
-kubectl get configmap wikipedia-todo-script -n project -o yaml
-
-# Check job history
-kubectl get jobs -n project
-
-# Check pod logs
-kubectl logs -l app=wikipedia-todo-generator -n project
-
-# Test manual execution
-kubectl create job --from=cronjob/wikipedia-todo-cronjob test-run -n project
-```
-
-### Existing Application Issues
-
-```bash
-
-# Check todo-backend health (EXISTING)
-curl http://project.local:8081/api/todo-service/health
-
-# Check pod logs (EXISTING)
-kubectl logs deployment/todo-backend-dep -n project
-kubectl logs deployment/image-service-dep -n project
-kubectl logs deployment/todo-frontend-dep -n project
-
-# Check database connectivity (EXISTING)
-kubectl exec -it statefulset/postgres-ss -n project -- \
-  psql -U postgres -d todo-db -c "SELECT COUNT(*) FROM todos;"
-```
-
-### Update Script (if needed)
-
-```bash
-
-# Edit the ConfigMap
-kubectl edit configmap wikipedia-todo-script -n project
-
-# Or re-apply the ConfigMap
-kubectl apply -f manifests/configmaps/cronjob-config.yaml -n project
-
-```
+Todo-backend logs (including long text messages) will appear in real time in Grafana.
 
 ## ScreenShoot
 
-### CronJob Deployment and Execution Verification
+### Validation and Logging in Action
 
-![Kubernetes resources and CronJob logs](../IMG/exercise_2_9_a.png)
+The following screenshot shows:
 
-## Application UI with CronJob-Generated Todo
+* Left: `curl` commands sending valid and invalid (>140 chars) todos
+* Right: Grafana dashboard displaying real-time logs from `todo-backend`
 
-![Frontend showing Wikipedia todo and cached image](../IMG/exercise_2_9_b.png)
+![Validation and Logging in Action](../IMG/exercise_2_10.png)
+

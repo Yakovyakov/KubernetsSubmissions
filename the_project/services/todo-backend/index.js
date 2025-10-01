@@ -47,9 +47,9 @@ async function initializeDatabase() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('Database initialized');
+    console.log('[TODO-INIT] Database initialized');
   } catch (err) {
-    console.error('ERROR: Database initialization error:', err);
+    console.error('[TODO-INIT] ERROR: Database initialization error:', err);
     process.exit(1);
   }
 }
@@ -63,7 +63,7 @@ app.get('/todos', async (req, res) => {
     const result = await pool.query('SELECT * FROM todos ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (err) {
-    console.error('ERROR: fetching todos:', err);
+    console.error('[TODO-GET] ERROR: fetching todos:', err);
     res.status(500).send('Database error');
   }
 });
@@ -73,7 +73,7 @@ app.get('/todos', async (req, res) => {
 app.post('/todos', async (req, res) => {
 
   if (!req.body || typeof req.body !== 'object') {
-    console.error('ERROR: Invalid request body');
+    console.error('[TODO-CREATE] ERROR: Invalid request body');
     return res.status(400).json({ error: 'Invalid request body' });
 
   }
@@ -81,14 +81,14 @@ app.post('/todos', async (req, res) => {
   const { text = '', done = false} = req.body;
 
   if (!text || text.trim() === '') {
-    console.error('ERROR: Validation failed - Text is required');
-    console.error('Request body:', req.body);
+    console.error('[TODO-CREATE] ERROR: Validation failed - Text is required');
+    console.error('[TODO-CREATE] Request body:', req.body);
     return res.status(400).json({ error: 'Text is required' });
   }
 
   if (text.length > 140){
-    console.error('ERROR: Validation failed - Text must be 140 characters or less');
-    console.error(`Received ${text.length} characters, "${text.substring(0, 50)}..."`);
+    console.error('[TODO-CREATE] ERROR: Validation failed - Text must be 140 characters or less');
+    console.error(`[TODO-CREATE] Received ${text.length} characters, "${text.substring(0, 50)}..."`);
     return res.status(400).json({ error: 'Text must be 140 characters or less'});
   }
 
@@ -97,9 +97,10 @@ app.post('/todos', async (req, res) => {
       'INSERT INTO todos (text) VALUES ($1) RETURNING *',
       [text.trim()]
     );
+    console.log(`[TODO-CREATE] SUCCESS: Created todo with ID ${result.rows[0].id}, "${text.trim()}"`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('ERROR: creating todo:', err);
+    console.error('[TODO-CREATE] ERROR: creating todo:', err);
     res.status(500).send('Database error');
   }
 });
@@ -114,6 +115,6 @@ app.use((req, res) => {
 
 initializeDatabase().then(() => {
   app.listen(PORT, () => {
-    console.log(`Todo backend with PostgreSQL started on port ${PORT}`);
+    console.log(`[TODO-INIT] Todo backend with PostgreSQL started on port ${PORT}`);
   });
 });

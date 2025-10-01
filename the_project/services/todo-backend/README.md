@@ -4,7 +4,7 @@ A lighweight, self-contaned todo microservice built with Node.js, Express and Po
 
 ## Description
 
-This is a minimalist microservice for managing todo items. The API features console error logging for debugging and monitoring purposes.
+This is a minimalist microservice for managing todo items. The API features console error logging and logs every request attempt (including invalid ones) to stdout for debugging and monitoring purposes.
 
 ## Local Development
 
@@ -35,7 +35,7 @@ npm run start
 **Build the image:**
 
   ```bash
-  docker build -t <your-dockerhub-username>/todo-backend:2.0 .
+  docker build -t <your-dockerhub-username>/todo-backend:2.1 .
   ```
 
 ## Pushing to Docker Hub
@@ -49,7 +49,7 @@ npm run start
 **Push the image:**
 
   ```bash
-  docker push <your-dockerhub-username>/todo-backend:2.0
+  docker push <your-dockerhub-username>/todo-backend:2.1
   ```
 
-Image was pushed to Docker Hub repo: [yakovyakov/todo-backend:2.0](https://hub.docker.com/r/yakovyakov/todo-backend/tags?name=2.0)
+Image was pushed to Docker Hub repo: [yakovyakov/todo-backend:2.1](https://hub.docker.com/r/yakovyakov/todo-backend/tags?name=2.1)
