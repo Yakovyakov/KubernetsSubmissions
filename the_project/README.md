@@ -498,35 +498,36 @@ To enable backend monitoring (including all validation logs), you can install **
 
 ```bash
 # Add Helm repositories
-helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add stable https://charts.helm.sh/stable
 helm repo update
 
 # Create namespace
-kubectl create namespace monitoring
-
-# Install Loki (for log collection)
-helm install loki grafana/loki --namespace monitoring
-
-# Install Promtail (log agent that sends logs to Loki)
-helm install promtail grafana/promtail \
-  --set "loki.serviceName=loki.monitoring.svc.cluster.local" \
-  --namespace monitoring
+kubectl create namespace prometheus
 
 # Install Prometheus
-helm install prometheus prometheus-community/prometheus \
-  --namespace monitoring
 
-# Install Grafana
-helm install grafana grafana/grafana \
-  --set "grafana.ini.auth.anonymous.enabled=true" \
-  --set "grafana.ini.auth.anonymous.org_role=Admin" \
-  --namespace monitoring
+helm install prometheus-community/kube-prometheus-stack --generate-name --namespace prometheus
+
+# Install Loki (for log collection)
+kubectl create namespace loki-stack
+
+helm upgrade --install loki --namespace=loki-stack grafana/loki-stack --set loki.image.tag=2.9.3
+
+# Port-forwarding
+
+kubectl get po -n prometheus | grep grafana
+
+# we will see a line like this
+# kube-prometheus-stack-1759247066-grafana-57cc9f8c7c-kr452         3/3     Running   0              18h
+
+kubectl -n prometheus port-forward kube-prometheus-stack-1759247066-grafana-57cc9f8c7c-kr452 3000
 ```
 
 Once installed:
 
-* Access Grafana at `http://localhost:3000` (username: `admin`, password: `kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode`).
+* Access Grafana at `http://localhost:3000` (username: `admin`, password: `kubectl --namespace prometheus get secrets kube-prometheus-stack-1759247066-grafana -o jsonpath="{.data.admin-password}" | base64 -d`).
 
 * Configure **Loki** as a data source (`http://loki.loki-stack:3100`).
 
@@ -544,4 +545,3 @@ The following screenshot shows:
 * Right: Grafana dashboard displaying real-time logs from `todo-backend`
 
 ![Validation and Logging in Action](../IMG/exercise_2_10.png)
-
