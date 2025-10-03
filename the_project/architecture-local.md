@@ -1,6 +1,7 @@
 # Application Architecture (Local - k3d)
 
 ## Overview
+
 Full-stack application deployed in a **local k3d cluster** under the `project` namespace. It includes:
 
 - **Frontend**: React SPA served via Nginx.
@@ -108,6 +109,7 @@ graph TD
   class SEC secret;
   class SVC1,SVC2,SVC3,SVC4 service;
 ```
+
 ### CronJob Detailed Workflow
 
 ```mermaid
